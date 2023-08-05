@@ -119,7 +119,8 @@ combined_array = np.column_stack((timearray, differences))
 output_filename = filename[:-4]+".csv"
 np.savetxt(output_filename, combined_array, delimiter=",", header="Times,differences", comments="")
 
-
+print(timearray)
+print(differences)
 plt.figure(figsize=(10, 4))
 plt.plot(time, normalized_amplitude)
 #plt.plot(time, norm_envelope)

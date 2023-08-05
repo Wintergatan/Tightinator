@@ -82,8 +82,8 @@ def replace_negatives_with_neighbors(lst):
     return new_lst
 
 
-
-wave_file = wave.open('./TEST_8Transients_1.wav', 'rb')
+filename = './TEST_8Transients_2.wav'
+wave_file = wave.open(filename, 'rb')
 
 frame_rate = wave_file.getframerate()
 num_frames = wave_file.getnframes()
@@ -109,11 +109,20 @@ for peak in peaks_roughly:
 	search_range = 150
 	max_value, max_index = find_maximum_around_peak(np.abs(normalized_amplitude), peak, search_range)
 	peaks.append(max_index)
+peaks = np.array(peaks)
+timearray = peaks/frame_rate
+differences = np.diff(timearray)
+differences = np.append(differences, 0)
+
+combined_array = np.column_stack((timearray, differences))
+
+output_filename = filename[:-4]+".csv"
+np.savetxt(output_filename, combined_array, delimiter=",", header="Times,differences", comments="")
 
 
 plt.figure(figsize=(10, 4))
 plt.plot(time, normalized_amplitude)
-plt.plot(time, norm_envelope)
+#plt.plot(time, norm_envelope)
 # Plot the peaks with red dots
 plt.plot(time[peaks], normalized_amplitude[peaks], 'ro', markersize=2, label='Peaks')
 plt.xlabel('Time (s)')
@@ -121,6 +130,7 @@ plt.ylabel('Amplitude')
 plt.title('Waveform Plot')
 plt.legend()
 plt.show()
+
 #frames = list(firstframes)
 #print(frames)
 #plt.plot(frames)

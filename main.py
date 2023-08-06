@@ -131,7 +131,7 @@ fig_centered, ax_centered = plt.subplots()
 
 # Add slider for zooming
 ax_slider_centered = plt.axes([0.2, 0.03, 0.65, 0.03])
-slider_centered = Slider(ax_slider_centered, 'Segments Zoom', valmin=0, valmax=1000, valinit=400, valstep=10)
+slider_centered = Slider(ax_slider_centered, 'Zoom', valmin=0, valmax=1000, valinit=400, valstep=10)
 
 
 def update_centered(val):
@@ -150,9 +150,9 @@ def update_centered(val):
         centered_x = x[start:end] - x[peak]
         ax_centered.plot(centered_x, segment, label='Transients centered on Maximum')
         ax_centered.plot(0, normalized_amplitude[peak], 'ro', markersize=4, label='Peaks')
-    ax_centered.set_xlabel('Time[ms]')
+    ax_centered.set_xlabel('Time [ms]')
     ax_centered.set_ylabel('Amplitude [a.u.]')
-    ax_centered.set_title('Transient centered on Maximum')
+    ax_centered.set_title('Similarness plot')
     plt.subplots_adjust(bottom=0.25)
     plt.draw() 
 
@@ -163,7 +163,7 @@ fig_peakdiff, ax_peakdiff = plt.subplots()  # Use 1 for a single set of axes
 
 # Add slider for zooming
 ax_slider_peakdiff = plt.axes([0.2, 0.03, 0.65, 0.03])
-slider_peakdiff = Slider(ax_slider_peakdiff, 'Segments Zoom', valmin=0, valmax=1000, valinit=150, valstep=10)
+slider_peakdiff = Slider(ax_slider_peakdiff, 'Zoom', valmin=0, valmax=1000, valinit=150, valstep=10)
 
 
 def update_peakdiff(val):
@@ -187,7 +187,7 @@ def update_peakdiff(val):
  
     
     # Set labels and title
-    ax_peakdiff.set_xlabel('peakdiff Time [ms]')
+    ax_peakdiff.set_xlabel('Time [ms]')
     ax_peakdiff.set_ylabel('Amplitude [a.u.]')
     ax_peakdiff.set_title('Tightness plot')
     
@@ -218,9 +218,9 @@ slider_peakdiff.on_changed(update_peakdiff)
 fig_waveform, ax_waveform = plt.subplots()  # Use 1 for a single set of axes
 
 # Add slider for zooming
-waveformseg_width = 500
+waveformseg_width = 500 #[ms]
 ax_slider_waveform = plt.axes([0.2, 0.03, 0.65, 0.03])
-slider_waveform = Slider(ax_slider_waveform, 'Segments Zoom', valmin=0, valmax=max(time-waveformseg_width), valinit=1, valstep=100)
+slider_waveform = Slider(ax_slider_waveform, 'Scroll', valmin=0, valmax=max(time-waveformseg_width), valinit=1, valstep=100)
 ax_peak_diff = ax_waveform.twinx()
 
 def update_waveform(val):
@@ -241,7 +241,7 @@ def update_waveform(val):
     ax_waveform.plot(time[downsampled_indices], normalized_amplitude[downsampled_indices], 'b')
     ax_waveform.set_xlabel('Time [ms]')
     ax_waveform.set_ylabel('Amplitude [a.u.]')
-    ax_waveform.set_title('Waveform Plot')
+    ax_waveform.set_title('Waveform/Consistency Plot')
     
     # Create a second y-axis for peak differences
 
@@ -250,13 +250,13 @@ def update_waveform(val):
     # Plot the peak differences as a bar diagram
     peak_differences = np.diff(peaks/frame_rate*1000)
     peak_middles = ((time[peaks[:-1]]+time[peaks[1:]])/2)
-    ax_peak_diff.bar(peak_middles, peak_differences, width=peak_differences, align='center', alpha=0.5, color='green', label='Peak Differences')
+    ax_peak_diff.bar(peak_middles, peak_differences, width=peak_differences, align='center', alpha=0.5, color='green', label='Time between transients [ms]')
     ax_peak_diff.legend(loc='upper right')  # Move the legend to the right side
     visible_peaks = np.where((peak_middles >= visible_start) & (peak_middles <= visible_end))
     # Set x-axis limits to the edges of the visible waveform plot
     ax_waveform.set_xlim(visible_start, visible_end)
     ax_peak_diff.set_xlim(visible_start, visible_end)
-    ax_peak_diff.set_ylabel('Peak Differences')
+    ax_peak_diff.set_ylabel('Time [ms]')
     ax_peak_diff.yaxis.set_label_position('right')
     ax_waveform.set_ylim(0, 1)
     scaling_factor = np.mean(peak_differences[visible_peaks])

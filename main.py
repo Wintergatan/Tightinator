@@ -96,20 +96,24 @@ def main():
     np.savetxt(output_filename, combined_array, delimiter=",", header="Times[ms],differences[ms]", fmt=np_fmt, comments="")
     
     fig_center = figure(title='Similarness plot', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]')
+    fig_center.output_backend = 'webgl'
     plot_centered(fig_center,signal,time,peaks)
     logging.info("center_plot exported")
     
     fig_peakdiff = figure(title='Tightness plot', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]')
+    fig_peakdiff.output_backend = 'webgl'
     plot_peakdiff(fig_peakdiff,signal,time,peaks)
     logging.info("peakdiff exported")
     
     fig_waveform = figure(title='Consistency/Waveform plot', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]')
+    fig_waveform.output_backend = 'webgl'
     plot_waveform(fig_waveform,signal,time,peaks,frame_rate)
     logging.info("waveform exported")
     
     differences = np.diff(timearray)
     peak_amp = normalized_amplitude[peaks]
     fig_stat = figure(title='stat plot', x_axis_label='Transient Time difference[ms]', y_axis_label='Number of elements in Bin')
+    fig_stat.output_backend = 'webgl'
     plot_stat(fig_stat,differences[:-1],peak_amp)
     logging.info("stat exported")
 
@@ -135,7 +139,7 @@ def plot_centered(fig, signal, time, peaks):
     
     
 def plot_peakdiff(fig, signal, time, peaks):
-    zoomval = 150
+    zoomval = 400
     log_val = np.exp(zoomval / 100)
 
     # Update peakdiff segments plot here
@@ -148,10 +152,9 @@ def plot_peakdiff(fig, signal, time, peaks):
         segment = signal[start:end]
         peakdiff_x = time[start:end] - time[start]  # Adjust x-axis values relative to the start
         fig.line(peakdiff_x, segment)
-        fig.circle(time[peaks[i+1] - peaks[i]],signal[peaks[i+1]], size=10, fill_color='red') 
+        fig.circle(time[peaks[i+1] - peaks[i]], signal[peaks[i+1]], size=10, fill_color='red') 
 
-    data_center = peakdiff_x[peaks[i+1] - peaks[i]]
-    print(data_center)
+    data_center = round(np.mean(time[peaks[i+1] - peaks[i]]))
     fig.x_range.start = data_center - segment_width
     fig.x_range.end = data_center + segment_width
     #reset_output()
@@ -163,6 +166,7 @@ def plot_waveform(fig, signal, time, peaks,frame_rate):
     visible_end = max(time)
     visible_indices = np.where((time >= visible_start) & (time <= visible_end))
     fig.line(time, signal, legend_label='Waveform')
+    fig.circle(time[peaks], signal[peaks], legend_label='Waveform', color = 'red')
     fig.y_range = Range1d(start=0, end=1)
     peak_differences = np.diff(peaks/frame_rate*1000)
     peak_middles = ((time[peaks[:-1]]+time[peaks[1:]])/2)
@@ -176,9 +180,6 @@ def plot_waveform(fig, signal, time, peaks,frame_rate):
     #fig.extra_y_ranges = {"peak_diff_range": Range1d(start=(1-resolution)*scaling_factor, end=(1+resolution)*scaling_factor)}
 
 
-    print(peak_middles)
-    print(peak_differences)
-    
 
     fig.x_range.start = visible_start
     fig.x_range.end = visible_end

@@ -1,11 +1,11 @@
 #!/usr/bin/python3
 
 import wave
-import matplotlib.pyplot as plt
 import numpy as np
+from bokeh.plotting import figure, show, output_file, reset_output
+from bokeh.models import LinearAxis, Range1d
+from scipy import integrate
 from scipy.signal import find_peaks
-from matplotlib.widgets import Slider
-from matplotlib.backend_bases import key_press_handler
 import argparse
 import logging
 
@@ -28,6 +28,9 @@ parser.add_argument('-x', '--exclusion', dest='exclusion', default='30', type=in
 parser.add_argument('-p', '--precision', dest='float_prec', default='6', type=int, action='store', help='DEFAULT=6 Number of decimal places to round measurements to. Ex: -p 6 = 261.51927438')
 parser.add_argument('-v', '--verbose', help="Set debug logging", action='store_true')
 args = parser.parse_args()
+
+
+
 
 def main():
 
@@ -83,11 +86,7 @@ def main():
     signal = normalized_amplitude
     segment_width = 1000
 
-    # Create and plot the segments centered around the peaks
-    #plt.figure(0, figsize=(10, 6))
-    fig_centered, ax_centered = plt.subplots()
-    fig_waveform, ax_waveform = plt.subplots()  # Use 1 for a single set of axes
-    ax_peak_diff = ax_waveform.twinx()
+    #
 
     combined_array = np.column_stack((timearray, differences))
 
@@ -95,48 +94,140 @@ def main():
     logging.info("Saving output values to {}".format(output_filename))
     np_fmt = "%1.{}f".format(float_prec)
     np.savetxt(output_filename, combined_array, delimiter=",", header="Times[ms],differences[ms]", fmt=np_fmt, comments="")
+    
+    fig_center = figure(title='Similarness plot', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]')
+    plot_centered(fig_center,signal,time,peaks)
+    logging.info("center_plot exported")
+    
+    fig_peakdiff = figure(title='Tightness plot', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]')
+    plot_peakdiff(fig_peakdiff,signal,time,peaks)
+    logging.info("peakdiff exported")
+    
+    fig_waveform = figure(title='Consistency/Waveform plot', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]')
+    plot_waveform(fig_waveform,signal,time,peaks,frame_rate)
+    logging.info("waveform exported")
+    
+    differences = np.diff(timearray)
+    peak_amp = normalized_amplitude[peaks]
+    fig_stat = figure(title='stat plot', x_axis_label='Transient Time difference[ms]', y_axis_label='Number of elements in Bin')
+    plot_stat(fig_stat,differences[:-1],peak_amp)
+    logging.info("stat exported")
 
-    #update_centered(time, signal, 400, peaks, ax_centered, normalized_amplitude)
-    #update_peakdiff(time, signal, 150, peaks, ax_peak_diff, normalized_amplitude)
-    #update_waveform(time, signal, 400, peaks, ax_waveform, normalized_amplitude, frame_rate)
+def plot_centered(fig, signal, time, peaks):
 
-    #plt.show(block=True)
+    zoomval = 400
+    log_val = np.exp(zoomval / 100)
+
+    # Update centered segments plot here
+    segment_width = int(log_val)
+    
+    for peak in peaks:
+        start = max(1, peak - segment_width)
+        end = min(len(time), peak + segment_width)
+        segment = signal[start:end]
+        centered_x = time[start:end] - time[peak]
+        fig.line(centered_x, segment)
+        fig.circle(0, signal[peak], size=10, fill_color='red')
+
+    #reset_output()
+    output_file("centered_plot.html")
+    show(fig)
+    
+    
+def plot_peakdiff(fig, signal, time, peaks):
+    zoomval = 150
+    log_val = np.exp(zoomval / 100)
+
+    # Update peakdiff segments plot here
+    segment_width = int(log_val)
+
+    
+    for i in range(len(peaks) - 2):
+        start = peaks[i]  # Start index at the current peak
+        end = peaks[i + 2]  # End index at the next peak
+        segment = signal[start:end]
+        peakdiff_x = time[start:end] - time[start]  # Adjust x-axis values relative to the start
+        fig.line(peakdiff_x, segment)
+        fig.circle(time[peaks[i+1] - peaks[i]],signal[peaks[i+1]], size=10, fill_color='red') 
+
+    data_center = peakdiff_x[peaks[i+1] - peaks[i]]
+    print(data_center)
+    fig.x_range.start = data_center - segment_width
+    fig.x_range.end = data_center + segment_width
+    #reset_output()
+    output_file("peakdiff_plot.html")
+    show(fig)
+    
+def plot_waveform(fig, signal, time, peaks,frame_rate):
+    visible_start = 0
+    visible_end = max(time)
+    visible_indices = np.where((time >= visible_start) & (time <= visible_end))
+    fig.line(time, signal, legend_label='Waveform')
+    fig.y_range = Range1d(start=0, end=1)
+    peak_differences = np.diff(peaks/frame_rate*1000)
+    peak_middles = ((time[peaks[:-1]]+time[peaks[1:]])/2)
+    resolution = 0.01
+
+    visible_peaks = np.where((peak_middles >= visible_start) & (peak_middles <= visible_end))
+    scaling_factor = np.mean(peak_differences[visible_peaks])
+    fig.extra_y_ranges = {"peak_diff_range": Range1d(start=(1-resolution)*scaling_factor, end=(1+resolution)*scaling_factor)}
+    fig.add_layout(LinearAxis(y_range_name="peak_diff_range", axis_label="Time between transients [ms]"), 'right')  # Add the right y-axis
+    fig.vbar(x=peak_middles, top=peak_differences, width=np.mean(peak_differences), y_range_name="peak_diff_range", color = 'green', fill_alpha=0.5, legend_label='transient differences')
+    #fig.extra_y_ranges = {"peak_diff_range": Range1d(start=(1-resolution)*scaling_factor, end=(1+resolution)*scaling_factor)}
 
 
-    ''''
-    # Add slider for zooming
-    ax_slider_centered = plt.axes([0.2, 0.03, 0.65, 0.03])
-    slider_centered = Slider(ax_slider_centered, 'Zoom', valmin=0, valmax=1000, valinit=400, valstep=10)
+    print(peak_middles)
+    print(peak_differences)
+    
 
-    slider_centered.on_changed(update_centered)
+    fig.x_range.start = visible_start
+    fig.x_range.end = visible_end
+    y_range_start = 0  # Define the start value for the y-axis range on the left
+    y_range_end = 1   # Define the end value for the y-axis range on the left
+    fig.y_range = Range1d(start=y_range_start, end=y_range_end)  # Set the y-range of the left y-axis
 
-    #plt.figure(1, figsize=(10, 6))
-    fig_peakdiff, ax_peakdiff = plt.subplots()  # Use 1 for a single set of axes
-    # Add slider for zooming
-    ax_slider_peakdiff = plt.axes([0.2, 0.03, 0.65, 0.03])
-    slider_peakdiff = Slider(ax_slider_peakdiff, 'Zoom', valmin=0, valmax=1000, valinit=150, valstep=10)
+    #reset_output()
+    output_file("waveform_plot.html")
+    show(fig)
+    
+def plot_stat(fig, x_data, y_data):
+    mean_x = np.mean(x_data)
+    std_x = np.std(x_data)
+    
+    stddeviations = 5
+    max_dist= max(abs(mean_x-min(x_data)),abs(mean_x+max(x_data)))
+    x_curve = np.linspace(mean_x-stddeviations*std_x, mean_x+stddeviations*std_x, 1000)
+    y_curve = np.linspace(min(y_data), max(y_data), 1000)
+    
+    # Calculate the unnormalized Gaussian values
+    x_gaussian = np.exp(-0.5 * ((x_curve - mean_x) / std_x)**2) / (std_x * np.sqrt(2 * np.pi))
+    
+    #x_gaussian = x_gaussian * x_normalization_factor  # Corrected line
+    area_under_curve= np.trapz(x_gaussian, x_curve)
+    #y_gaussian = np.exp(-0.5 * ((y_curve - mean_y) / std_y)**2) / (std_y * np.sqrt(2 * np.pi))
+    x_gaussian = x_gaussian / area_under_curve
+    # Plot the curves
+    num_bins = 6
+    hist, bin_edges = np.histogram(x_data, bins=num_bins)
+    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+    mean_bins = np.mean(bin_centers)
+    std_bins = np.std(bin_centers)
+    binsize=bin_centers[1]-bin_centers[0]
+    max_count_index = np.argmax(hist)
+    num_elements_in_highest_bin = hist[max_count_index]
+    fig.quad(top=hist, bottom=0, left=bin_edges[:-1], right=bin_edges[1:], fill_color="blue", line_color="white", alpha=0.7)
+    row_spacing = max(x_gaussian)/(num_elements_in_highest_bin)
+    fig.y_range = Range1d(start=0, end=num_elements_in_highest_bin)
+    fig.circle(x_data,np.zeros(len(x_data))+0.05, size=10, fill_color='red')
+    
+    fig.extra_y_ranges = {"gaussian_range": Range1d(start=0, end=max(x_gaussian))}
+    fig.add_layout(LinearAxis(y_range_name="gaussian_range", axis_label="Probability Density [a.u.]"), 'right')  # Add the right y-axis
+    fig.line(x_curve, x_gaussian, y_range_name="gaussian_range",)
+    
+    output_file("stat_plot.html")
+    show(fig)
 
-    slider_peakdiff.on_changed(update_peakdiff)
-
-    #plt.figure(2, figsize=(10, 6))
-    fig_waveform, ax_waveform = plt.subplots()  # Use 1 for a single set of axes
-
-    # Add slider for zooming
-    waveformseg_width = 500 #[ms]
-    ax_slider_waveform = plt.axes([0.2, 0.03, 0.65, 0.03])
-    slider_waveform = Slider(ax_slider_waveform, 'Scroll', valmin=0, valmax=max(time-waveformseg_width), valinit=1, valstep=100)
-    ax_peak_diff = ax_waveform.twinx()
-
-    slider_waveform.on_changed(update_waveform)
-
-    # Connect key press event to on_key function for all plots
-
-    fig_centered.canvas.mpl_connect('key_press_event', on_key)
-    fig_peakdiff.canvas.mpl_connect('key_press_event', on_key)
-    fig_waveform.canvas.mpl_connect('key_press_event', on_key)
-    '''
-
-
+    
 def find_maximum_around_peak(data, peak_location, search_range):
     """
     Find the maximum value within a specified search range around a given peak location.
@@ -208,151 +299,7 @@ def replace_negatives_with_neighbors(lst):
                 new_lst[i] = right_neighbor
     return new_lst
 
-def update_centered(time, signal, val, peaks, ax_centered, normalized_amplitude):
-    # Update centered segments plot here
-    log_val = np.exp(val / 100)
 
-    # Update centered segments plot here
-    segment_width = int(log_val)
-    ax_centered.clear()
-    #ax_centered.plot(time, normalized_amplitude)
-    peak = ''
-    for peak in peaks:
-        start = max(1, peak - segment_width)
-        end = min(len(time), peak + segment_width)
-        segment = signal[start:end]
-        centered_x = time[start:end] - time[peak]
-        ax_centered.plot(centered_x, segment, label='Transients centered on Maximum')
-        ax_centered.plot(0, normalized_amplitude[peak], 'ro', markersize=4, label='Peaks')
-    ax_centered.set_xlabel('Time [ms]')
-    ax_centered.set_ylabel('Amplitude [a.u.]')
-    ax_centered.set_title('Similarness plot')
-    plt.subplots_adjust(bottom=0.25)
-    plt.draw()
-
-def update_peakdiff(time, signal, val, peaks, ax_peakdiff, normalized_amplitude):
-    # Update peakdiff segments plot here
-    log_val = np.exp(val / 100)
-
-    # Update peakdiff segments plot here
-    segment_width = int(log_val)
-    ax_peakdiff.clear()
-
-    for i in range(len(peaks) - 2):
-        start = peaks[i]  # Start index at the current peak
-        end = peaks[i + 2]  # End index at the next peak
-        segment = signal[start:end]
-        peakdiff_x = time[start:end] - time[start]  # Adjust x-axis values relative to the start
-        ax_peakdiff.plot(peakdiff_x, segment)
-        ax_peakdiff.plot(time[peaks[i+1] - peaks[i]], normalized_amplitude[peaks[i+1]], 'ro', markersize=4, label='Peaks')
-
-
-    # Set labels and title
-    ax_peakdiff.set_xlabel('Time [ms]')
-    ax_peakdiff.set_ylabel('Amplitude [a.u.]')
-    ax_peakdiff.set_title('Tightness plot')
-
-
-    # Get the current x-axis limits
-    current_xlim = ax_peakdiff.get_xlim()
-
-    # Calculate the center of the data
-    data_center = (current_xlim[0] + current_xlim[1]) / 2
-
-    # Calculate the new x-axis limits based on the data center and segment width
-    new_xlim = (data_center - segment_width, data_center + segment_width)
-
-    # Set the new x-axis limits
-    ax_peakdiff.set_xlim(new_xlim)
-
-    # Display the legend and adjust the layout
-    plt.subplots_adjust(bottom=0.25)
-
-    plt.draw()  # Add this line to refresh the plot
-
-
-def update_waveform(time, signal, val, peaks, ax_waveform, normalized_amplitude, frame_rate):
-
-    waveformseg_width = 500 #[ms]
-    #ax_slider_waveform = plt.axes([0.2, 0.03, 0.65, 0.03])
-    #slider_waveform = Slider(ax_slider_waveform, 'Scroll', valmin=0, valmax=max(time-waveformseg_width), valinit=1, valstep=100)
-    ax_peak_diff = ax_waveform.twinx()
-
-    ax_waveform.clear()
-    #ax_peak_diff = ax_waveform.twinx()
-    ax_peak_diff.clear()
-    # Calculate the visible x-axis range based on the slider value
-    visible_start = val
-    visible_end = val + waveformseg_width
-
-    # Find the indices of the waveform data that correspond to the visible range
-    visible_indices = np.where((time >= visible_start) & (time <= visible_end))
-
-    # Downsample the waveform data for plotting
-    downsample_factor = 1
-    downsampled_indices = visible_indices[0][::downsample_factor]
-
-    # Plot the downsampled waveform within the visible range
-    ax_waveform.plot(time[downsampled_indices], normalized_amplitude[downsampled_indices], 'b')
-
-    # Calculate the indices of the peaks in the downsampled data
-    peaks_downsampled = np.intersect1d(downsampled_indices, peaks)
-
-    # Plot the peaks as red dots on the downsampled waveform
-
-    ax_waveform.plot(time[peaks], normalized_amplitude[peaks], 'ro', markersize=4, label='Peaks')
-
-    ax_waveform.set_xlabel('Time [ms]')
-    ax_waveform.set_ylabel('Amplitude [a.u.]')
-    ax_waveform.set_title('Waveform/Consistency Plot')
-
-    # Create a second y-axis for peak differences
-
-    # Plot the peak differences as a bar diagram
-    peak_differences = np.diff(peaks/frame_rate*1000)
-    peak_middles = ((time[peaks[:-1]]+time[peaks[1:]])/2)
-    ax_peak_diff.bar(peak_middles, peak_differences, width=peak_differences, align='center', alpha=0.5, color='green', label='Time between transients [ms]')
-
-    ax_peak_diff.legend(loc='upper right')  # Move the legend to the right side
-    visible_peaks = np.where((peak_middles >= visible_start) & (peak_middles <= visible_end))
-    # Set x-axis limits to the edges of the visible waveform plot
-    ax_waveform.set_xlim(visible_start, visible_end)
-    ax_peak_diff.set_xlim(visible_start, visible_end)
-    ax_peak_diff.set_ylabel('Time [ms]')
-    ax_peak_diff.yaxis.set_label_position('right')
-    ax_waveform.set_ylim(0, 1)
-    scaling_factor = np.mean(peak_differences[visible_peaks])
-    resolution = 0.01
-    ax_peak_diff.set_ylim((1-resolution)*scaling_factor, (1+resolution)*scaling_factor)
-    plt.subplots_adjust(bottom=0.25)
-    plt.draw()
-
-'''
-def on_key(event):
-    """Handler for key press events."""
-    if event.key == 'left':
-        # Decrease slider value
-        if event.inaxes == ax_slider_centered:
-            slider_centered.set_val(slider_centered.val - slider_centered.valstep)
-            fig_centered.canvas.draw_idle()
-        elif event.inaxes == ax_slider_peakdiff:
-            slider_peakdiff.set_val(slider_peakdiff.val - slider_peakdiff.valstep)
-            fig_peakdiff.canvas.draw_idle()
-        elif event.inaxes == ax_slider_waveform:
-            slider_waveform.set_val(slider_waveform.val - slider_waveform.valstep)
-            fig_waveform.canvas.draw_idle()
-    elif event.key == 'right':
-        # Increase slider value
-        if event.inaxes == ax_slider_centered:
-            slider_centered.set_val(slider_centered.val + slider_centered.valstep)
-            fig_centered.canvas.draw_idle()
-        elif event.inaxes == ax_slider_peakdiff:
-            slider_peakdiff.set_val(slider_peakdiff.val + slider_peakdiff.valstep)
-            fig_peakdiff.canvas.draw_idle()
-        elif event.inaxes == ax_slider_waveform:
-            slider_waveform.set_val(slider_waveform.val + slider_waveform.valstep)
-            fig_waveform.canvas.draw_idle()
-'''
 
 if __name__ == '__main__':
     main()

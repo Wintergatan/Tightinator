@@ -8,6 +8,8 @@ from scipy import integrate
 from scipy.signal import find_peaks
 import argparse
 import logging
+from matplotlib.widgets import Slider
+from matplotlib.backend_bases import key_press_handler
 
 filename = ''
 output_filename = ''
@@ -299,7 +301,6 @@ def replace_negatives_with_neighbors(lst):
             elif right_neighbor is not None:
                 new_lst[i] = right_neighbor
     return new_lst
-
 
 
 if __name__ == '__main__':

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Download CSV</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            background-color: lightgrey;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        
+        #downloadLink {
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="downloadLink">
+        <h1>CSV File Generated</h1>
+        <p>Your CSV file is ready for download:</p>
+        <a href="{{ url_for('download_file', filename=filename) }}" download>Download CSV</a>
+    </div>
+</body>
+</html>
+

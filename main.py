@@ -234,23 +234,30 @@ def update_waveform(val):
     visible_indices = np.where((time >= visible_start) & (time <= visible_end))
     
     # Downsample the waveform data for plotting
-    downsample_factor = 16
+    downsample_factor = 1
     downsampled_indices = visible_indices[0][::downsample_factor]
     
     # Plot the downsampled waveform within the visible range
     ax_waveform.plot(time[downsampled_indices], normalized_amplitude[downsampled_indices], 'b')
+    
+    # Calculate the indices of the peaks in the downsampled data
+    peaks_downsampled = np.intersect1d(downsampled_indices, peaks)
+    
+    # Plot the peaks as red dots on the downsampled waveform
+
+    ax_waveform.plot(time[peaks], normalized_amplitude[peaks], 'ro', markersize=4, label='Peaks')
+    
     ax_waveform.set_xlabel('Time [ms]')
     ax_waveform.set_ylabel('Amplitude [a.u.]')
     ax_waveform.set_title('Waveform/Consistency Plot')
     
     # Create a second y-axis for peak differences
 
-
-    
     # Plot the peak differences as a bar diagram
     peak_differences = np.diff(peaks/frame_rate*1000)
     peak_middles = ((time[peaks[:-1]]+time[peaks[1:]])/2)
     ax_peak_diff.bar(peak_middles, peak_differences, width=peak_differences, align='center', alpha=0.5, color='green', label='Time between transients [ms]')
+    
     ax_peak_diff.legend(loc='upper right')  # Move the legend to the right side
     visible_peaks = np.where((peak_middles >= visible_start) & (peak_middles <= visible_end))
     # Set x-axis limits to the edges of the visible waveform plot

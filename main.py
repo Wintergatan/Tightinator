@@ -81,15 +81,29 @@ def main():
     differences = np.append(differences, 0)
 
     signal = normalized_amplitude
-    x = time
-
     segment_width = 1000
 
     # Create and plot the segments centered around the peaks
     #plt.figure(0, figsize=(10, 6))
     fig_centered, ax_centered = plt.subplots()
+    fig_waveform, ax_waveform = plt.subplots()  # Use 1 for a single set of axes
+    ax_peak_diff = ax_waveform.twinx()
+
+    combined_array = np.column_stack((timearray, differences))
+
+    output_filename = filename[:-4]+".csv"
+    logging.info("Saving output values to {}".format(output_filename))
+    np_fmt = "%1.{}f".format(float_prec)
+    np.savetxt(output_filename, combined_array, delimiter=",", header="Times[ms],differences[ms]", fmt=np_fmt, comments="")
+
+    #update_centered(time, signal, 400, peaks, ax_centered, normalized_amplitude)
+    #update_peakdiff(time, signal, 150, peaks, ax_peak_diff, normalized_amplitude)
+    #update_waveform(time, signal, 400, peaks, ax_waveform, normalized_amplitude, frame_rate)
+
+    #plt.show(block=True)
 
 
+    ''''
     # Add slider for zooming
     ax_slider_centered = plt.axes([0.2, 0.03, 0.65, 0.03])
     slider_centered = Slider(ax_slider_centered, 'Zoom', valmin=0, valmax=1000, valinit=400, valstep=10)
@@ -98,7 +112,6 @@ def main():
 
     #plt.figure(1, figsize=(10, 6))
     fig_peakdiff, ax_peakdiff = plt.subplots()  # Use 1 for a single set of axes
-
     # Add slider for zooming
     ax_slider_peakdiff = plt.axes([0.2, 0.03, 0.65, 0.03])
     slider_peakdiff = Slider(ax_slider_peakdiff, 'Zoom', valmin=0, valmax=1000, valinit=150, valstep=10)
@@ -117,22 +130,11 @@ def main():
     slider_waveform.on_changed(update_waveform)
 
     # Connect key press event to on_key function for all plots
+
     fig_centered.canvas.mpl_connect('key_press_event', on_key)
     fig_peakdiff.canvas.mpl_connect('key_press_event', on_key)
     fig_waveform.canvas.mpl_connect('key_press_event', on_key)
-
-    combined_array = np.column_stack((timearray, differences))
-
-    output_filename = filename[:-4]+".csv"
-    logging.info("Saving output values to {}".format(output_filename))
-    np_fmt = "%1.{}f".format(float_prec)
-    np.savetxt(output_filename, combined_array, delimiter=",", header="Times[ms],differences[ms]", fmt=np_fmt, comments="")
-
-    #update_centered(400, peaks)
-    #update_peakdiff(150)
-    #update_waveform(400)
-
-    plt.show(block=True)
+    '''
 
 
 def find_maximum_around_peak(data, peak_location, search_range):
@@ -206,20 +208,20 @@ def replace_negatives_with_neighbors(lst):
                 new_lst[i] = right_neighbor
     return new_lst
 
-def update_centered(val, peaks):
+def update_centered(time, signal, val, peaks, ax_centered, normalized_amplitude):
     # Update centered segments plot here
     log_val = np.exp(val / 100)
 
     # Update centered segments plot here
     segment_width = int(log_val)
-    #ax_centered.clear()
+    ax_centered.clear()
     #ax_centered.plot(time, normalized_amplitude)
     peak = ''
     for peak in peaks:
         start = max(1, peak - segment_width)
-        end = min(len(x), peak + segment_width)
+        end = min(len(time), peak + segment_width)
         segment = signal[start:end]
-        centered_x = x[start:end] - x[peak]
+        centered_x = time[start:end] - time[peak]
         ax_centered.plot(centered_x, segment, label='Transients centered on Maximum')
         ax_centered.plot(0, normalized_amplitude[peak], 'ro', markersize=4, label='Peaks')
     ax_centered.set_xlabel('Time [ms]')
@@ -228,7 +230,7 @@ def update_centered(val, peaks):
     plt.subplots_adjust(bottom=0.25)
     plt.draw()
 
-def update_peakdiff(val):
+def update_peakdiff(time, signal, val, peaks, ax_peakdiff, normalized_amplitude):
     # Update peakdiff segments plot here
     log_val = np.exp(val / 100)
 
@@ -240,9 +242,9 @@ def update_peakdiff(val):
         start = peaks[i]  # Start index at the current peak
         end = peaks[i + 2]  # End index at the next peak
         segment = signal[start:end]
-        peakdiff_x = x[start:end] - x[start]  # Adjust x-axis values relative to the start
+        peakdiff_x = time[start:end] - time[start]  # Adjust x-axis values relative to the start
         ax_peakdiff.plot(peakdiff_x, segment)
-        ax_peakdiff.plot(x[peaks[i+1] - peaks[i]], normalized_amplitude[peaks[i+1]], 'ro', markersize=4, label='Peaks')
+        ax_peakdiff.plot(time[peaks[i+1] - peaks[i]], normalized_amplitude[peaks[i+1]], 'ro', markersize=4, label='Peaks')
 
 
     # Set labels and title
@@ -269,8 +271,15 @@ def update_peakdiff(val):
     plt.draw()  # Add this line to refresh the plot
 
 
-def update_waveform(val):
+def update_waveform(time, signal, val, peaks, ax_waveform, normalized_amplitude, frame_rate):
+
+    waveformseg_width = 500 #[ms]
+    #ax_slider_waveform = plt.axes([0.2, 0.03, 0.65, 0.03])
+    #slider_waveform = Slider(ax_slider_waveform, 'Scroll', valmin=0, valmax=max(time-waveformseg_width), valinit=1, valstep=100)
+    ax_peak_diff = ax_waveform.twinx()
+
     ax_waveform.clear()
+    #ax_peak_diff = ax_waveform.twinx()
     ax_peak_diff.clear()
     # Calculate the visible x-axis range based on the slider value
     visible_start = val
@@ -318,7 +327,7 @@ def update_waveform(val):
     plt.subplots_adjust(bottom=0.25)
     plt.draw()
 
-
+'''
 def on_key(event):
     """Handler for key press events."""
     if event.key == 'left':
@@ -343,6 +352,7 @@ def on_key(event):
         elif event.inaxes == ax_slider_waveform:
             slider_waveform.set_val(slider_waveform.val + slider_waveform.valstep)
             fig_waveform.canvas.draw_idle()
+'''
 
 if __name__ == '__main__':
     main()

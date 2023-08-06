@@ -56,9 +56,15 @@
     </style>
 </head>
 <body>
-    <div id="configForm">
+
+    <div id="spinner" style="display: none;">
+    <img src="/static/assets/spinner.png" alt="Loading...">
+    </div>
+
+    <div>
         <h1>Configuration</h1>
-        <form action="/download_file" method="post">
+        <form id="configForm" action="{{ url_for('run', uuid=uuid) }}" method="post">
+            <input type="hidden" name="uuid" value="{{ uuid }}">
             <label for="threshold">Detection sensitivity:
                 <b><span id="thresholdLabel">0.25</span></b> <!-- Place the threshold label inside the label -->
             </label>
@@ -86,5 +92,60 @@
             thresholdLabel.appendChild(newThresholdLabel);
         });
     </script>
+
+    <script>
+        const uuid = "{{ uuid }}";
+        const configForm = document.getElementById('configForm'); // Get the form element
+
+        configForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const threshold = document.getElementById('threshold').value;
+            const rounding = document.getElementById('rounding').value;
+
+            const formData = new FormData(this); // Use 'this' to reference the form element
+
+            const spinner = document.getElementById('spinner');
+
+            // Show the spinner and hide the form
+            spinner.style.display = 'block';
+            configForm.style.display = 'none';
+
+            fetch(this.action, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+            if (response.ok) {
+                // Create a form element
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '/running';  // Change to the appropriate URL
+
+                // Create an input element for the UUID
+                const uuidInput = document.createElement('input');
+                uuidInput.type = 'hidden';
+                uuidInput.name = 'uuid';
+                uuidInput.value = uuid;
+
+                // Append the input element to the form
+                form.appendChild(uuidInput);
+
+                // Append the form to the document and submit it
+                document.body.appendChild(form);
+                form.submit();
+            } else {
+                throw new Error(`Request failed with status: ${response.status}`);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+
+            // Hide the spinner and show the form again
+            spinner.style.display = 'none';
+            configForm.style.display = 'block';
+        });
+    </script>
+
 </body>
 </html>

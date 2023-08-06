@@ -1,6 +1,7 @@
 import os
 import uuid
-from flask import Flask, request, render_template, send_from_directory, redirect, url_for, jsonify
+import subprocess
+from flask import Flask, request, render_template, send_from_directory, redirect, url_for, jsonify, send_file, Response
 
 app = Flask(__name__)
 
@@ -34,25 +35,33 @@ def config(uuid):
 
     return render_template('config.html', uuid=uuid)
 
-@app.route('/download/<filename>', methods=['GET'])
-def download(filename):
-    unique_id = str(uuid.uuid4())
-    output_filename = f'{unique_id}.csv'
+@app.route('/run/<uuid>', methods=['POST'])
+def run(uuid):
+    threshold = float(request.form['threshold'])
+    rounding = int(request.form['rounding'])
 
-    # Run your Python script here to generate the CSV file based on the uploaded WAV file
-    # Example: generate_csv_from_wav(filename, output_filename)
+    try:
+        # Run the Python script with subprocess in the background
+        subprocess.Popen(['python3', 'main.py', '-f', "static/upload/{}/{}.wav".format(uuid, uuid), '-o', "static/upload/{}/{}.csv".format(uuid, uuid)])
 
-    # For demonstration purposes, we'll create an empty CSV file with the generated filename
-    csv_directory = os.path.join(app.config['UPLOAD_FOLDER'], unique_id)
-    os.makedirs(csv_directory)  # Create a directory for the UUID
-    csv_path = os.path.join(csv_directory, output_filename)
-    open(csv_path, 'w').close()
+        # Redirect to the "Running..." page
+        return redirect(url_for('running', uuid=uuid))
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
-    return render_template('download.html', filename=output_filename)
+@app.route('/running/<uuid>')
+def running(uuid):
+    return render_template('running.html', uuid=uuid)
 
-@app.route('/downloads/<filename>', methods=['GET'])
-def download_file(filename):
-    return send_from_directory('', filename, as_attachment=True)
+@app.route('/download/<uuid>')
+def download(uuid):
+    csv_path = os.path.join(app.root_path, 'static', 'upload', uuid, f'{uuid}.csv')
+
+    if os.path.exists(csv_path):
+        return send_file(csv_path, as_attachment=True, download_name=f'{uuid}.csv')
+    else:
+        return render_template('404.html'), 404
+
 
 if __name__ == '__main__':
     app.run(debug=True)

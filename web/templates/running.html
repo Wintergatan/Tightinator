@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Waiting...</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            background-color: lightgrey;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Processing your request...</h1>
+    <script>
+    // Get the UUID from the query parameter
+
+    const uuid = "{{ uuid }}";
+    console.log(uuid)
+
+    // Function to check if the file is ready for download
+    function checkDownloadStatus() {
+        fetch(`/download/${uuid}`)
+            .then(response => {
+                if (response.ok) {
+                    // File is ready, initiate download
+                    window.location.href = `/download/${uuid}`;
+                } else {
+                    // File is not yet ready, continue checking
+                    setTimeout(checkDownloadStatus, 1000); // Check again in 1 second
+                }
+            })
+            .catch(error => {
+                // File is not yet ready, continue checking
+                setTimeout(checkDownloadStatus, 1000); // Check again in 1 second
+            });
+    }
+
+    // Call the function when the page loads
+    checkDownloadStatus();
+    </script>
+
+
+</body>
+</html>

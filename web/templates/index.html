@@ -1,3 +1,5 @@
+
+
 <!DOCTYPE html>
 <html>
 <head>
@@ -49,6 +51,17 @@
             font-size: 50px;
             color: green;
         }
+
+        #githubBadge {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background-color: #fff;
+            color: black;
+            padding: 5px 10px;
+            border-radius: 10px;
+            text-decoration: none;
+        }
     </style>
 </head>
 <body>
@@ -67,6 +80,12 @@
     <div id="checkmark">&#10003;</div>
 
     <div id="message" style="display: none;"></div>
+
+    <!-- GitHub badge link -->
+    <a href="https://github.com/YanFett/Wintergatan_data_analysis" id="githubBadge">
+        <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub Logo" style="width: 20px; vertical-align: middle;">
+        View source on GitHub
+    </a>
 
     <script>
         const dropArea = document.getElementById('dropArea');

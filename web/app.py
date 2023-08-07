@@ -1,6 +1,7 @@
 import os
 import uuid
 import subprocess
+import logging
 from flask import Flask, request, render_template, send_from_directory, redirect, url_for, jsonify, send_file, Response
 
 app = Flask(__name__)
@@ -18,11 +19,15 @@ def index():
     if request.method == 'POST':
         file = request.files['file']
         if file and file.filename.endswith('.wav'):
+            #app.logger.info('Loading {}'.format(file.filename))
             unique_id = str(uuid.uuid4())
             csv_directory = os.path.join(app.config['UPLOAD_FOLDER'], unique_id)
             os.makedirs(csv_directory)  # Create a directory for the UUID
             wav_path = os.path.join(csv_directory, f'{unique_id}.wav')
             file.save(wav_path)  # Save the uploaded WAV file
+            #with open(os.path.join(csv_directory, 'meta.txt'), 'w') as f:
+            #    f.write(str(file.filename))
+            #    f.close()
 
             return jsonify({'status': 'success', 'uuid': unique_id})
 

@@ -13,6 +13,7 @@ import logging
 filename = ''
 output_filename = ''
 thresh = ''
+num_channels = ''
 envelope_smoothness = ''
 exclusion = ''
 float_prec = ''
@@ -20,27 +21,32 @@ verbose = ''
 npeaks = ''
 nbins = ''
 len_series = ''
+web_mode = False
+x_wide = ''
+y_high = ''
 
 parser = argparse.ArgumentParser(description='Map transient times')
 parser.add_argument('-f', '--file', dest='filename', type=str, action='store', help='File to open')
 parser.add_argument('-o', '--out', dest='output_filename', type=str, action='store', help='Filename to write output values to')
 parser.add_argument('-t', '--threshold', dest='thresh', default='0.25', type=float, action='store', help='DEFAULT=0.25 Peak detection threshold, lower is rougher')
-parser.add_argument('-c', '--number-channels', dest='num_channels', type=int, action='store', help='DEFAULT=3 Number of channels, 2=MONO, 3=STEREO, etc')
+parser.add_argument('-c', '--number-channels', dest='num_channels', default='2', type=int, action='store', help='DEFAULT=2 Number of channels, 1=MONO, 2=STEREO, etc')
 parser.add_argument('-s', '--channel-offset', dest='off_channel', type=int, action='store', help='DEFAULT=2 Channel offset, channel to analyze.')
-parser.add_argument('-e', '--envelope-smoothness', dest='envelope_smoothness', default='100', type=int, action='store', help='DEFAULT=100 Amount of rounding around the envelope')
-parser.add_argument('-x', '--exclusion', dest='exclusion', default='30', type=int, action='store', help='DEFAULT=30 Exclusion threshold')
+parser.add_argument('-en', '--envelope-smoothness', dest='envelope_smoothness', default='100', type=int, action='store', help='DEFAULT=100 Amount of rounding around the envelope')
+parser.add_argument('-ex', '--exclusion', dest='exclusion', default='30', type=int, action='store', help='DEFAULT=30 Exclusion threshold')
 parser.add_argument('-p', '--precision', dest='float_prec', default='6', type=int, action='store', help='DEFAULT=6 Number of decimal places to round measurements to. Ex: -p 6 = 261.51927438')
-parser.add_argument('-n', '--npeaks', dest='npeaks', default='3', type=int, action='store', help='DEFAULT=3 Number of valid Peaks from which the leftmost is selected for better lining up between transients.')
+parser.add_argument('-n', '--number-peaks', dest='npeaks', default='3', type=int, action='store', help='DEFAULT=3 Number of valid Peaks from which the leftmost is selected for better lining up between transients.')
 parser.add_argument('-b', '--bins', dest='nbins', default='9', type=int, action='store', help='DEFAULT=9 Number of Bins used for the gaussian curve.')
 parser.add_argument('-l', '--length', dest='len_series', default='100', type=int, action='store', help='DEFAULT=100 The length of the series of most consistent Beats.')
+parser.add_argument('-w', '--web', dest='web_mode', default=False, action='store_true', help='Get some width/height values from browser objects for graphing. Defaults false.')
+parser.add_argument('-x', '--x-width', dest='x_wide', default='2000', type=int, action='store', help='DEFAULT=2000 Fixed width for graphs.')
+parser.add_argument('-y', '--plot-height', dest='y_high', default='600', type=int, action='store', help='DEFAULT=600 Fixed height for single plot.')
 parser.add_argument('-v', '--verbose', help="Set debug logging", action='store_true')
 
 args = parser.parse_args()
 
-
-
-
 def main():
+
+    logging.info(args)
 
     if args.verbose:
         print(args)
@@ -48,16 +54,30 @@ def main():
         logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
     else:
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-    nbins = 10
-    npeaks = 3
-    len_series = 100
+
     # User configuration values
     envelope_smoothness = args.envelope_smoothness
     exclusion = args.exclusion
     filename = args.filename
-    output_filename = args.output_filename
+    #output_filename = args.output_filename
     threshold = args.thresh
+    num_channels = args.num_channels
     float_prec = args.float_prec
+    nbins = args.nbins
+    npeaks = args.npeaks
+    len_series = args.len_series
+    web_mode = args.web_mode
+    full_width = args.x_wide
+    plot_height = args.y_high
+
+    # If output_filename argument not set use the uploaded filename + .csv
+    if not args.output_filename:
+        output_filename = filename[:-4]+".csv"
+    else:
+        output_filename = args.output_filename
+
+    # If in web mode set the working directory to static/upload
+    #psuedo do webmode
 
     # Open wav file
     wave_file = wave.open(filename, 'rb')
@@ -69,9 +89,7 @@ def main():
 
     wave_file.close()
 
-    numchannel = 2
-
-    amplitude_data = amplitude_data[::numchannel]
+    amplitude_data = amplitude_data[::num_channels]
 
     normalized_amplitude = amplitude_data / np.max(np.abs(amplitude_data))
     normalized_amplitude = replace_negatives_with_neighbors(normalized_amplitude)
@@ -106,7 +124,6 @@ def main():
     signal = normalized_amplitude
     segment_width = 1000
 
-
     diffs = differences[:-1]
     diff_std = []
     for i in range(len(diffs)-len_series):
@@ -118,13 +135,10 @@ def main():
     best_diffs = diffs[start_of_best_series:start_of_best_series+len_series]
     best_series_amps = signal[best_peaks]
     combined_array = np.column_stack((timearray, differences))
-    output_filename = filename[:-4]+".csv"
+    #output_filename = filename[:-4]+".csv"
     logging.info("Saving output values to {}".format(output_filename))
     np_fmt = "%1.{}f".format(float_prec)
     np.savetxt(output_filename, combined_array, delimiter=",", header="Times[ms],differences[ms]", fmt=np_fmt, comments="")
-    
-    full_width = 2000
-    plot_height = 600
     
     fig_center = figure(title='Similarness plot - most consistent Beast', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]', width=int(np.floor(full_width/2)), height=plot_height)
     fig_center.output_backend = 'webgl'

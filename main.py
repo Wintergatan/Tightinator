@@ -17,6 +17,9 @@ envelope_smoothness = ''
 exclusion = ''
 float_prec = ''
 verbose = ''
+npeaks = ''
+nbins = ''
+
 
 parser = argparse.ArgumentParser(description='Map transient times')
 parser.add_argument('-f', '--file', dest='filename', type=str, action='store', help='File to open')
@@ -27,7 +30,11 @@ parser.add_argument('-s', '--channel-offset', dest='off_channel', type=int, acti
 parser.add_argument('-e', '--envelope-smoothness', dest='envelope_smoothness', default='100', type=int, action='store', help='DEFAULT=100 Amount of rounding around the envelope')
 parser.add_argument('-x', '--exclusion', dest='exclusion', default='30', type=int, action='store', help='DEFAULT=30 Exclusion threshold')
 parser.add_argument('-p', '--precision', dest='float_prec', default='6', type=int, action='store', help='DEFAULT=6 Number of decimal places to round measurements to. Ex: -p 6 = 261.51927438')
+parser.add_argument('-n', '--npeaks', dest='npeaks', default='3', type=int, action='store', help='DEFAULT=3 Number of valid Peaks from which the leftmost is selected for better lining up between transients.')
+parser.add_argument('-b', '--bins', dest='nbins', default='9', type=int, action='store', help='DEFAULT=9 Number of Bins used for the gaussian curve.')
+
 parser.add_argument('-v', '--verbose', help="Set debug logging", action='store_true')
+
 args = parser.parse_args()
 
 
@@ -41,7 +48,8 @@ def main():
         logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
     else:
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
+    nbins = 9
+    npeaks = 3
     # User configuration values
     envelope_smoothness = args.envelope_smoothness
     exclusion = args.exclusion
@@ -77,7 +85,7 @@ def main():
     peaktimes = []
     for peak in peaks_roughly:
         search_range = 500
-        max_value, max_index = find_maximum_around_peak(np.abs(normalized_amplitude), peak, search_range)
+        max_value, max_index = find_maximum_around_peak(np.abs(normalized_amplitude), peak, search_range,npeaks)
         #max_time, max_index, max_value = find_fwhm_center(time,np.abs(normalized_amplitude),peak,search_range)
         if(len(peaks) >0):
             if(peaks[-1] != max_index):
@@ -136,7 +144,7 @@ def main():
     peak_amp = normalized_amplitude[peaks]
     fig_stat = figure(title='Statistics plot - most consistent Beast', x_axis_label='Transient Time difference [ms]', y_axis_label='Number of Elements in Bin', width=int(np.floor(full_width/2)), height=plot_height)
     fig_stat.output_backend = 'webgl'
-    stat_fig = plot_stat(fig_stat,best_diffs,peak_amp)
+    stat_fig = plot_stat(fig_stat,best_diffs,peak_amp,nbins)
     logging.info("stat figure created")
     
     layout = column(waveform_fig, peakdiff_fig, row(fig_center,fig_stat))
@@ -230,7 +238,7 @@ def plot_waveform(fig, signal, time, peaks,peaktimes,frame_rate,best_series_time
     return fig
 
     
-def plot_stat(fig, x_data, y_data):
+def plot_stat(fig, x_data, y_data,nbins):
     mean_x = np.mean(x_data)
     std_x = np.std(x_data)
     
@@ -247,7 +255,7 @@ def plot_stat(fig, x_data, y_data):
     #y_gaussian = np.exp(-0.5 * ((y_curve - mean_y) / std_y)**2) / (std_y * np.sqrt(2 * np.pi))
     x_gaussian = x_gaussian / area_under_curve
     # Plot the curves
-    num_bins = 9
+    num_bins = nbins
     hist, bin_edges = np.histogram(x_data, bins=num_bins)
     bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
     mean_bins = np.mean(bin_centers)
@@ -266,7 +274,7 @@ def plot_stat(fig, x_data, y_data):
     return fig
 
     
-def find_maximum_around_peak(data, peak_location, search_range):
+def find_maximum_around_peak(data, peak_location, search_range, npeaks):
     """
     Find the maximum value within a specified search range around a given peak location.
 
@@ -279,7 +287,7 @@ def find_maximum_around_peak(data, peak_location, search_range):
         float: Maximum value found within the search range.
         int: Index of the maximum value within the search range.
     """
-    numpeaks = 3
+    numpeaks = int(npeaks)
     start_index = max(0, peak_location - search_range)
     end_index = min(len(data), peak_location + search_range + 1)
     max_values = np.partition(data[start_index:end_index], -numpeaks)[-numpeaks:]  # Get the two highest values

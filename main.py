@@ -1,11 +1,11 @@
 #!/usr/bin/python3
 
-import wave
 import numpy as np
 from bokeh.plotting import figure, show, output_file
 from bokeh.models import LinearAxis, Range1d
 from bokeh.layouts import row, column
 from scipy import integrate
+from scipy.io import wavfile
 from scipy.signal import find_peaks
 import argparse
 import logging
@@ -13,7 +13,7 @@ import logging
 filename = ''
 output_filename = ''
 thresh = ''
-num_channels = ''
+channel = ''
 envelope_smoothness = ''
 exclusion = ''
 float_prec = ''
@@ -29,8 +29,7 @@ parser = argparse.ArgumentParser(description='Map transient times')
 parser.add_argument('-f', '--file', dest='filename', type=str, action='store', help='File to open')
 parser.add_argument('-o', '--out', dest='output_filename', type=str, action='store', help='Filename to write output values to')
 parser.add_argument('-t', '--threshold', dest='thresh', default='0.25', type=float, action='store', help='DEFAULT=0.25 Peak detection threshold, lower is rougher')
-parser.add_argument('-c', '--number-channels', dest='num_channels', default='2', type=int, action='store', help='DEFAULT=2 Number of channels, 1=MONO, 2=STEREO, etc')
-parser.add_argument('-s', '--channel-offset', dest='off_channel', type=int, action='store', help='DEFAULT=2 Channel offset, channel to analyze.')
+parser.add_argument('-c', '--channel', dest='channel', default='1', type=int, action='store', help='DEFAULT=1 Channel to get the Waveform from')
 parser.add_argument('-en', '--envelope-smoothness', dest='envelope_smoothness', default='100', type=int, action='store', help='DEFAULT=100 Amount of rounding around the envelope')
 parser.add_argument('-ex', '--exclusion', dest='exclusion', default='30', type=int, action='store', help='DEFAULT=30 Exclusion threshold')
 parser.add_argument('-p', '--precision', dest='float_prec', default='6', type=int, action='store', help='DEFAULT=6 Number of decimal places to round measurements to. Ex: -p 6 = 261.51927438')
@@ -61,7 +60,7 @@ def main():
     filename = args.filename
     #output_filename = args.output_filename
     threshold = args.thresh
-    num_channels = args.num_channels
+    channel = args.channel
     float_prec = args.float_prec
     nbins = args.nbins
     npeaks = args.npeaks
@@ -80,16 +79,12 @@ def main():
     #psuedo do webmode
 
     # Open wav file
-    wave_file = wave.open(filename, 'rb')
+    frame_rate, data = wavfile.read(filename)
+    amplitude_data = data[:,channel-1] # First channel has to be 1, only programmers know things start at 0
+    downsamplerate = 8
+    amplitude_data = amplitude_data[::downsamplerate]
+    timefactor = (frame_rate/downsamplerate)/1000
 
-    frame_rate = wave_file.getframerate()
-    num_frames = wave_file.getnframes()
-    logging.info("Analyzing {}, {}Hz and {} frames.".format(filename, frame_rate, num_frames))
-    amplitude_data = np.frombuffer(wave_file.readframes(num_frames), dtype=np.int64)
-
-    wave_file.close()
-
-    amplitude_data = amplitude_data[::num_channels]
 
     normalized_amplitude = amplitude_data / np.max(np.abs(amplitude_data))
     normalized_amplitude = replace_negatives_with_neighbors(normalized_amplitude)
@@ -99,9 +94,11 @@ def main():
     peaks_roughly, _ = find_peaks(norm_envelope, prominence=threshold,width = exclusion)
     #print(peaks_roughly)
     logging.info("Found {} rough peaks, refining...".format(len(peaks_roughly)))
-    time = np.arange(0, len(normalized_amplitude)) / (frame_rate/4) * 1000
+    time = np.arange(0, len(normalized_amplitude))/timefactor
     peaks = []
+
     peaktimes = []
+
     for peak in peaks_roughly:
         search_range = 500
         max_value, max_index = find_maximum_around_peak(np.abs(normalized_amplitude), peak, search_range,npeaks)
@@ -139,23 +136,27 @@ def main():
     logging.info("Saving output values to {}".format(output_filename))
     np_fmt = "%1.{}f".format(float_prec)
     np.savetxt(output_filename, combined_array, delimiter=",", header="Times[ms],differences[ms]", fmt=np_fmt, comments="")
+
+
+
     
-    fig_center = figure(title='Similarness plot - most consistent Beast', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]', width=int(np.floor(full_width/2)), height=plot_height)
+    fig_center = figure(title='Similarness plot - most consistent Beats', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]', width=int(np.floor(full_width/2)), height=plot_height)
     fig_center.output_backend = 'webgl'
     center_fig = plot_centered(fig_center,signal,time, best_peaks)
     logging.info("center_plot figure created")
     
-    fig_peakdiff = figure(title='Tightness plot - most consistent Beast', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]', width=full_width, height=plot_height)
+    
+    fig_peakdiff = figure(title='Tightness plot - most consistent Beats', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]', width=full_width, height=plot_height)
     fig_peakdiff.output_backend = 'webgl'
     peakdiff_fig = plot_peakdiff(fig_peakdiff,signal,time,best_peaks)
     logging.info("peakdiff figure created")
     
-    fig_waveform = figure(title='Consistency/Waveform plot', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]', width=full_width, height=plot_height)
+    fig_waveform = figure(title='Consistency/Waveform plot', x_axis_label='Time [s]', y_axis_label='Amplitude [a.u.]', width=full_width, height=plot_height)
     fig_waveform.output_backend = 'webgl'
     waveform_fig = plot_waveform(fig_waveform,signal,time,peaks,peaktimes,frame_rate,best_series_times)
     logging.info("waveform figure created")
     
-    fig_stat = figure(title='Statistics plot - most consistent Beast', x_axis_label='Transient Time difference [ms]', y_axis_label='Number of Elements in Bin', width=int(np.floor(full_width/2)), height=plot_height)
+    fig_stat = figure(title='Statistics plot - most consistent Beats', x_axis_label='Transient Time difference [ms]', y_axis_label='Number of Elements in Bin', width=int(np.floor(full_width/2)), height=plot_height)
     fig_stat.output_backend = 'webgl'
     stat_fig = plot_stat(fig_stat,best_series_times,best_series_amps,nbins)
     logging.info("stat figure created")
@@ -171,7 +172,7 @@ def plot_centered(fig, signal, time, peaks):
 
     # Update centered segments plot here
     segment_width = int(log_val)
-    cutoff = 0.01
+    cutoff = 0
     maxheight = 1
     for peak in peaks:
         start = max(1, peak - segment_width)
@@ -187,6 +188,7 @@ def plot_centered(fig, signal, time, peaks):
     fig.x_range.end = max(centered_x[segment >cutoff])
     fig.y_range.start = 0
     fig.y_range.end = maxheight + 0.05
+    fig.xaxis.ticker.num_minor_ticks = 9
     return fig
     
     
@@ -208,6 +210,7 @@ def plot_peakdiff(fig, signal, time, peaks):
     fig.x_range.end = data_center + segment_width
     fig.y_range.start = 0
     fig.y_range.end = 1
+    fig.xaxis.ticker.num_minor_ticks = 9
     return fig
     
 def plot_waveform(fig, signal, time, peaks,peaktimes,frame_rate,best_series_times):
@@ -252,6 +255,7 @@ def plot_waveform(fig, signal, time, peaks,peaktimes,frame_rate,best_series_time
     y_range_start = 0  # Define the start value for the y-axis range on the left
     y_range_end = 1   # Define the end value for the y-axis range on the left
     fig.y_range = Range1d(start=y_range_start, end=y_range_end)  # Set the y-range of the left y-axis
+    fig.xaxis.ticker.num_minor_ticks = 9
     return fig
 
     
@@ -292,6 +296,7 @@ def plot_stat(fig, peak_times, y_data,nbins):
     fig.extra_y_ranges = {"gaussian_range": Range1d(start=0, end=max(x_gaussian))}
     fig.add_layout(LinearAxis(y_range_name="gaussian_range", axis_label="Probability Density [a.u.]"), 'right')  # Add the right y-axis
     fig.line(x_curve, x_gaussian, y_range_name="gaussian_range", color= 'red', line_width = 2.5, legend_label='Gaussian distribution')
+    fig.xaxis.ticker.num_minor_ticks = 9
     return fig
 
     

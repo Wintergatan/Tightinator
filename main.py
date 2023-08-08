@@ -19,7 +19,7 @@ float_prec = ''
 verbose = ''
 npeaks = ''
 nbins = ''
-
+len_series = ''
 
 parser = argparse.ArgumentParser(description='Map transient times')
 parser.add_argument('-f', '--file', dest='filename', type=str, action='store', help='File to open')
@@ -32,7 +32,7 @@ parser.add_argument('-x', '--exclusion', dest='exclusion', default='30', type=in
 parser.add_argument('-p', '--precision', dest='float_prec', default='6', type=int, action='store', help='DEFAULT=6 Number of decimal places to round measurements to. Ex: -p 6 = 261.51927438')
 parser.add_argument('-n', '--npeaks', dest='npeaks', default='3', type=int, action='store', help='DEFAULT=3 Number of valid Peaks from which the leftmost is selected for better lining up between transients.')
 parser.add_argument('-b', '--bins', dest='nbins', default='9', type=int, action='store', help='DEFAULT=9 Number of Bins used for the gaussian curve.')
-
+parser.add_argument('-l', '--length', dest='len_series', default='100', type=int, action='store', help='DEFAULT=100 The length of the series of most consistent Beats.')
 parser.add_argument('-v', '--verbose', help="Set debug logging", action='store_true')
 
 args = parser.parse_args()
@@ -48,8 +48,9 @@ def main():
         logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
     else:
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-    nbins = 9
+    nbins = 10
     npeaks = 3
+    len_series = 100
     # User configuration values
     envelope_smoothness = args.envelope_smoothness
     exclusion = args.exclusion
@@ -105,17 +106,17 @@ def main():
     signal = normalized_amplitude
     segment_width = 1000
 
+
     diffs = differences[:-1]
     diff_std = []
-    for i in range(len(diffs)-100):
-        diff_std.append(np.std(diffs[i:i+99]))
+    for i in range(len(diffs)-len_series):
+        diff_std.append(np.std(diffs[i:i+len_series]))
     start_of_best_series=np.argmin(diff_std)
     
-    best_peaks = peaks[start_of_best_series:start_of_best_series+99]
-    best_series_times = timearray[start_of_best_series:start_of_best_series+100]
-    best_diffs = diffs[start_of_best_series:start_of_best_series+99]
-    best_series_amps = signal[start_of_best_series:start_of_best_series+99]
-    
+    best_peaks = peaks[start_of_best_series:start_of_best_series+len_series]
+    best_series_times = timearray[start_of_best_series:start_of_best_series+len_series]
+    best_diffs = diffs[start_of_best_series:start_of_best_series+len_series]
+    best_series_amps = signal[best_peaks]
     combined_array = np.column_stack((timearray, differences))
     output_filename = filename[:-4]+".csv"
     logging.info("Saving output values to {}".format(output_filename))
@@ -127,7 +128,7 @@ def main():
     
     fig_center = figure(title='Similarness plot - most consistent Beast', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]', width=int(np.floor(full_width/2)), height=plot_height)
     fig_center.output_backend = 'webgl'
-    center_fig = plot_centered(fig_center,signal,time, best_peaks, best_series_amps)
+    center_fig = plot_centered(fig_center,signal,time, best_peaks)
     logging.info("center_plot figure created")
     
     fig_peakdiff = figure(title='Tightness plot - most consistent Beast', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]', width=full_width, height=plot_height)
@@ -140,18 +141,16 @@ def main():
     waveform_fig = plot_waveform(fig_waveform,signal,time,peaks,peaktimes,frame_rate,best_series_times)
     logging.info("waveform figure created")
     
-    differences = np.diff(timearray)
-    peak_amp = normalized_amplitude[peaks]
     fig_stat = figure(title='Statistics plot - most consistent Beast', x_axis_label='Transient Time difference [ms]', y_axis_label='Number of Elements in Bin', width=int(np.floor(full_width/2)), height=plot_height)
     fig_stat.output_backend = 'webgl'
-    stat_fig = plot_stat(fig_stat,best_diffs,peak_amp,nbins)
+    stat_fig = plot_stat(fig_stat,best_series_times,best_series_amps,nbins)
     logging.info("stat figure created")
     
-    layout = column(waveform_fig, peakdiff_fig, row(fig_center,fig_stat))
+    layout = column(waveform_fig, peakdiff_fig, row(fig_center,stat_fig))
     output_file("summary.html", title="Summary Page")
     show(layout)
 
-def plot_centered(fig, signal, time, peaks, best_series_amps):
+def plot_centered(fig, signal, time, peaks):
 
     zoomval = 400
     log_val = np.exp(zoomval / 100)
@@ -159,17 +158,21 @@ def plot_centered(fig, signal, time, peaks, best_series_amps):
     # Update centered segments plot here
     segment_width = int(log_val)
     cutoff = 0.01
+    maxheight = 1
     for peak in peaks:
         start = max(1, peak - segment_width)
         end = min(len(time), peak + segment_width)
         segment = signal[start:end]
         centered_x = time[start:end] - time[peak]
-        fig.line(centered_x[segment >cutoff], segment[segment>cutoff], alpha=0.5, legend_label='centered Waveform')
-        fig.circle(0, signal[peak], size=10, fill_color='red', legend_label='detected peak')
+        fig.line(centered_x[segment >cutoff], (segment[segment>cutoff])/signal[peak], alpha=0.5, legend_label='centered Waveform')
+        newmax = max((segment[segment>cutoff])/signal[peak])
+        if(newmax > maxheight):
+            maxheight = newmax
+    fig.circle(0, 1, size=10, fill_color='red', legend_label='detected peaks')
     fig.x_range.start = min(centered_x[segment >cutoff])
     fig.x_range.end = max(centered_x[segment >cutoff])
     fig.y_range.start = 0
-    fig.y_range.end = 1
+    fig.y_range.end = maxheight + 0.05
     return fig
     
     
@@ -238,14 +241,17 @@ def plot_waveform(fig, signal, time, peaks,peaktimes,frame_rate,best_series_time
     return fig
 
     
-def plot_stat(fig, x_data, y_data,nbins):
+def plot_stat(fig, peak_times, y_data,nbins):
+    
+    
+    x_data = np.diff(peak_times)
     mean_x = np.mean(x_data)
     std_x = np.std(x_data)
     
     stddeviations = 5
     max_dist= max(abs(mean_x-min(x_data)),abs(mean_x+max(x_data)))
     x_curve = np.linspace(mean_x-stddeviations*std_x, mean_x+stddeviations*std_x, 1000)
-    y_curve = np.linspace(min(y_data), max(y_data), 1000)
+    y_curve = np.linspace(min(y_data)-50, max(y_data)+50, 1000)
     
     # Calculate the unnormalized Gaussian values
     x_gaussian = np.exp(-0.5 * ((x_curve - mean_x) / std_x)**2) / (std_x * np.sqrt(2 * np.pi))
@@ -266,7 +272,8 @@ def plot_stat(fig, x_data, y_data,nbins):
     fig.quad(top=hist, bottom=0, left=bin_edges[:-1], right=bin_edges[1:], fill_color="blue", line_color="white", alpha=0.7, legend_label='Number of Elements per Bin')
     row_spacing = max(x_gaussian)/(num_elements_in_highest_bin)
     fig.y_range = Range1d(start=0, end=num_elements_in_highest_bin)
-    fig.circle(x_data,np.zeros(len(x_data))+0.05, size=10, fill_color='red', legend_label='Transient Time Difference')
+    peakamps =y_data[1:]
+    fig.circle(x_data,(peakamps / np.max(np.abs(peakamps)))*(num_elements_in_highest_bin-1), size=10, fill_color='red', legend_label='Peak Transient Time')
     
     fig.extra_y_ranges = {"gaussian_range": Range1d(start=0, end=max(x_gaussian))}
     fig.add_layout(LinearAxis(y_range_name="gaussian_range", axis_label="Probability Density [a.u.]"), 'right')  # Add the right y-axis

@@ -2,8 +2,9 @@
 
 import wave
 import numpy as np
-from bokeh.plotting import figure, show, output_file, reset_output
+from bokeh.plotting import figure, show, output_file
 from bokeh.models import LinearAxis, Range1d
+from bokeh.layouts import row, column
 from scipy import integrate
 from scipy.signal import find_peaks
 import argparse
@@ -59,124 +60,164 @@ def main():
 
     wave_file.close()
 
-    numchannel = 3
-    channeloffset = 2
-    amplitude_data = amplitude_data[channeloffset::numchannel]
+    numchannel = 2
+
+    amplitude_data = amplitude_data[::numchannel]
 
     normalized_amplitude = amplitude_data / np.max(np.abs(amplitude_data))
-
     normalized_amplitude = replace_negatives_with_neighbors(normalized_amplitude)
     envel = create_envelope(np.abs(normalized_amplitude),envelope_smoothness);
     norm_envelope = envel / np.max(np.abs(envel))
     # Find peak maxima above the threshold
     peaks_roughly, _ = find_peaks(norm_envelope, prominence=threshold,width = exclusion)
+    #print(peaks_roughly)
     logging.info("Found {} rough peaks, refining...".format(len(peaks_roughly)))
-    time = np.arange(0, len(normalized_amplitude)) / frame_rate * 1000
+    time = np.arange(0, len(normalized_amplitude)) / (frame_rate/4) * 1000
     peaks = []
+    peaktimes = []
     for peak in peaks_roughly:
-        search_range = 150
+        search_range = 500
         max_value, max_index = find_maximum_around_peak(np.abs(normalized_amplitude), peak, search_range)
-        peaks.append(max_index)
+        #max_time, max_index, max_value = find_fwhm_center(time,np.abs(normalized_amplitude),peak,search_range)
+        if(len(peaks) >0):
+            if(peaks[-1] != max_index):
+                peaks.append(max_index)
+                peaktimes.append(time[max_index])
+        else:
+            peaks.append(max_index)
+            peaktimes.append(time[max_index])
+    #print(peaks)
+    #print(peaktimes)
     peaks = np.array(peaks)
     logging.info("Refined to {} peaks, calculating times...".format(len(peaks)))
-    timearray = peaks/frame_rate*1000
+    timearray = peaktimes
     differences = np.diff(timearray)
     differences = np.append(differences, 0)
 
     signal = normalized_amplitude
     segment_width = 1000
 
-    #
-
+    diffs = differences[:-1]
+    diff_std = []
+    for i in range(len(diffs)-100):
+        diff_std.append(np.std(diffs[i:i+99]))
+    start_of_best_series=np.argmin(diff_std)
+    
+    best_peaks = peaks[start_of_best_series:start_of_best_series+99]
+    best_series_times = timearray[start_of_best_series:start_of_best_series+100]
+    best_diffs = diffs[start_of_best_series:start_of_best_series+99]
+    best_series_amps = signal[start_of_best_series:start_of_best_series+99]
+    
     combined_array = np.column_stack((timearray, differences))
-
     output_filename = filename[:-4]+".csv"
     logging.info("Saving output values to {}".format(output_filename))
     np_fmt = "%1.{}f".format(float_prec)
     np.savetxt(output_filename, combined_array, delimiter=",", header="Times[ms],differences[ms]", fmt=np_fmt, comments="")
     
-    fig_center = figure(title='Similarness plot', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]')
+    full_width = 2000
+    plot_height = 600
+    
+    fig_center = figure(title='Similarness plot - 100 most consistent Transients', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]', width=int(np.floor(full_width/2)), height=plot_height)
     fig_center.output_backend = 'webgl'
-    plot_centered(fig_center,signal,time,peaks)
-    logging.info("center_plot exported")
+    center_fig = plot_centered(fig_center,signal,time, best_peaks, best_series_amps)
+    logging.info("center_plot figure created")
     
-    fig_peakdiff = figure(title='Tightness plot', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]')
+    fig_peakdiff = figure(title='Tightness plot - 100 most consistent Transients', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]', width=full_width, height=plot_height)
     fig_peakdiff.output_backend = 'webgl'
-    plot_peakdiff(fig_peakdiff,signal,time,peaks)
-    logging.info("peakdiff exported")
+    peakdiff_fig = plot_peakdiff(fig_peakdiff,signal,time,best_peaks)
+    logging.info("peakdiff figure created")
     
-    fig_waveform = figure(title='Consistency/Waveform plot', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]')
+    fig_waveform = figure(title='Consistency/Waveform plot', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]', width=full_width, height=plot_height)
     fig_waveform.output_backend = 'webgl'
-    plot_waveform(fig_waveform,signal,time,peaks,frame_rate)
-    logging.info("waveform exported")
+    waveform_fig = plot_waveform(fig_waveform,signal,time,peaks,peaktimes,frame_rate,best_series_times)
+    logging.info("waveform figure created")
     
     differences = np.diff(timearray)
     peak_amp = normalized_amplitude[peaks]
-    fig_stat = figure(title='stat plot', x_axis_label='Transient Time difference[ms]', y_axis_label='Number of elements in Bin')
+    fig_stat = figure(title='stat plot - 100 most consistent Transients', x_axis_label='Transient Time difference[ms]', y_axis_label='Number of elements in Bin', width=int(np.floor(full_width/2)), height=plot_height)
     fig_stat.output_backend = 'webgl'
-    plot_stat(fig_stat,differences[:-1],peak_amp)
-    logging.info("stat exported")
+    stat_fig = plot_stat(fig_stat,best_diffs,peak_amp)
+    logging.info("stat figure created")
+    
+    layout = column(waveform_fig, peakdiff_fig, row(fig_center,fig_stat))
+    output_file("summary.html", title="Summary Page")
+    show(layout)
 
-def plot_centered(fig, signal, time, peaks):
+def plot_centered(fig, signal, time, peaks, best_series_amps):
 
     zoomval = 400
     log_val = np.exp(zoomval / 100)
 
     # Update centered segments plot here
     segment_width = int(log_val)
-    
+    cutoff = 0.01
     for peak in peaks:
         start = max(1, peak - segment_width)
         end = min(len(time), peak + segment_width)
         segment = signal[start:end]
         centered_x = time[start:end] - time[peak]
-        fig.line(centered_x, segment)
-        fig.circle(0, signal[peak], size=10, fill_color='red')
-
-    #reset_output()
-    output_file("centered_plot.html")
-    show(fig)
+        fig.line(centered_x[segment >cutoff], segment[segment>cutoff], alpha=0.5, legend_label='centered Waveform')
+        fig.circle(0, signal[peak], size=10, fill_color='red', legend_label='detected peak')
+    fig.x_range.start = min(centered_x[segment >cutoff])
+    fig.x_range.end = max(centered_x[segment >cutoff])
+    fig.y_range.start = 0
+    fig.y_range.end = 1
+    return fig
     
     
 def plot_peakdiff(fig, signal, time, peaks):
-    zoomval = 400
-    log_val = np.exp(zoomval / 100)
-
-    # Update peakdiff segments plot here
-    segment_width = int(log_val)
-
-    
+    cutoff = 0.01
+    diff_times = []
     for i in range(len(peaks) - 2):
         start = peaks[i]  # Start index at the current peak
         end = peaks[i + 2]  # End index at the next peak
         segment = signal[start:end]
         peakdiff_x = time[start:end] - time[start]  # Adjust x-axis values relative to the start
-        fig.line(peakdiff_x, segment)
-        fig.circle(time[peaks[i+1] - peaks[i]], signal[peaks[i+1]], size=10, fill_color='red') 
-
-    data_center = round(np.mean(time[peaks[i+1] - peaks[i]]))
+        diff_times.append(time[peaks[i+1] - peaks[i]])
+        fig.line(peakdiff_x[segment >cutoff], segment[segment >cutoff], alpha=0.5, legend_label='Peak Waveform')
+        fig.circle(diff_times[i], signal[peaks[i+1]], size=10, fill_color='red', legend_label='detected Peak') 
+    zoomfact = 5
+    data_center = round(np.mean(diff_times))
+    segment_width = zoomfact*round(np.std(diff_times))
     fig.x_range.start = data_center - segment_width
     fig.x_range.end = data_center + segment_width
-    #reset_output()
-    output_file("peakdiff_plot.html")
-    show(fig)
+    fig.y_range.start = 0
+    fig.y_range.end = 1
+    return fig
     
-def plot_waveform(fig, signal, time, peaks,frame_rate):
-    visible_start = 0
-    visible_end = max(time)
-    visible_indices = np.where((time >= visible_start) & (time <= visible_end))
-    fig.line(time, signal, legend_label='Waveform')
-    fig.circle(time[peaks], signal[peaks], legend_label='Waveform', color = 'red')
-    fig.y_range = Range1d(start=0, end=1)
-    peak_differences = np.diff(peaks/frame_rate*1000)
-    peak_middles = ((time[peaks[:-1]]+time[peaks[1:]])/2)
-    resolution = 0.01
+def plot_waveform(fig, signal, time, peaks,peaktimes,frame_rate,best_series_times):
+    cutoff = 0.01
 
+    signal_cut = signal[signal >cutoff]
+    time_cut = time[signal >cutoff]/1000
+    time_xax = time/1000
+    visible_start = 0
+    visible_end = max(time_xax)
+    visible_indices = np.where((time_xax >= visible_start) & (time_xax <= visible_end))
+    fig.line(time_cut, signal_cut, legend_label='Waveform')
+    fig.circle(time_xax[peaks], signal[peaks], legend_label='Detected Peaks', color = 'red')
+    fig.y_range = Range1d(start=0, end=1)
+    peak_differences = np.diff(peaktimes)
+    peak_differences_best = np.diff(best_series_times)
+    #peak_differences_bpm = np.where(peak_differences == 0, -1, peak_differences) # a very dirty fix
+    peak_bpm = (60*1000)/peak_differences
+    peak_bpm_best = (60*1000)/peak_differences_best
+    x_coordinate = best_series_times[0]/1000
+
+    fig.segment(x0=[x_coordinate], y0=0, x1=[x_coordinate], y1=1, line_width=2, line_dash="dashed", line_color="black")
+    x_coordinate = max(best_series_times)/1000
+
+    fig.segment(x0=[x_coordinate], y0=0, x1=[x_coordinate], y1=1, line_width=2, line_dash="dashed", line_color="black")
+    peak_middles = ((time_xax[peaks[:-1]]+time_xax[peaks[1:]])/2)
+    resolution = 0.01
     visible_peaks = np.where((peak_middles >= visible_start) & (peak_middles <= visible_end))
-    scaling_factor = np.mean(peak_differences[visible_peaks])
-    fig.extra_y_ranges = {"peak_diff_range": Range1d(start=(1-resolution)*scaling_factor, end=(1+resolution)*scaling_factor)}
-    fig.add_layout(LinearAxis(y_range_name="peak_diff_range", axis_label="Time between transients [ms]"), 'right')  # Add the right y-axis
-    fig.vbar(x=peak_middles, top=peak_differences, width=np.mean(peak_differences), y_range_name="peak_diff_range", color = 'green', fill_alpha=0.5, legend_label='transient differences')
+    diff_mean = np.mean(peak_bpm_best)
+    diff_stdev = np.std(peak_bpm_best)
+    zoom_factor = 10
+    fig.extra_y_ranges = {"peak_diff_range": Range1d(diff_mean-zoom_factor*diff_stdev, diff_mean+zoom_factor*diff_stdev)}
+    fig.add_layout(LinearAxis(y_range_name="peak_diff_range", axis_label="BPM [Hz]"), 'right')  # Add the right y-axis
+    fig.vbar(x=peak_middles, top=peak_bpm, width=1/peak_bpm, y_range_name="peak_diff_range", color = 'green', fill_alpha=0.75, legend_label='BPM [Hz]')
+
     #fig.extra_y_ranges = {"peak_diff_range": Range1d(start=(1-resolution)*scaling_factor, end=(1+resolution)*scaling_factor)}
 
 
@@ -186,10 +227,8 @@ def plot_waveform(fig, signal, time, peaks,frame_rate):
     y_range_start = 0  # Define the start value for the y-axis range on the left
     y_range_end = 1   # Define the end value for the y-axis range on the left
     fig.y_range = Range1d(start=y_range_start, end=y_range_end)  # Set the y-range of the left y-axis
+    return fig
 
-    #reset_output()
-    output_file("waveform_plot.html")
-    show(fig)
     
 def plot_stat(fig, x_data, y_data):
     mean_x = np.mean(x_data)
@@ -208,7 +247,7 @@ def plot_stat(fig, x_data, y_data):
     #y_gaussian = np.exp(-0.5 * ((y_curve - mean_y) / std_y)**2) / (std_y * np.sqrt(2 * np.pi))
     x_gaussian = x_gaussian / area_under_curve
     # Plot the curves
-    num_bins = 6
+    num_bins = 9
     hist, bin_edges = np.histogram(x_data, bins=num_bins)
     bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
     mean_bins = np.mean(bin_centers)
@@ -216,17 +255,15 @@ def plot_stat(fig, x_data, y_data):
     binsize=bin_centers[1]-bin_centers[0]
     max_count_index = np.argmax(hist)
     num_elements_in_highest_bin = hist[max_count_index]
-    fig.quad(top=hist, bottom=0, left=bin_edges[:-1], right=bin_edges[1:], fill_color="blue", line_color="white", alpha=0.7)
+    fig.quad(top=hist, bottom=0, left=bin_edges[:-1], right=bin_edges[1:], fill_color="blue", line_color="white", alpha=0.7, legend_label='Number of Elements per Bin')
     row_spacing = max(x_gaussian)/(num_elements_in_highest_bin)
     fig.y_range = Range1d(start=0, end=num_elements_in_highest_bin)
-    fig.circle(x_data,np.zeros(len(x_data))+0.05, size=10, fill_color='red')
+    fig.circle(x_data,np.zeros(len(x_data))+0.05, size=10, fill_color='red', legend_label='Transient Time Difference')
     
     fig.extra_y_ranges = {"gaussian_range": Range1d(start=0, end=max(x_gaussian))}
     fig.add_layout(LinearAxis(y_range_name="gaussian_range", axis_label="Probability Density [a.u.]"), 'right')  # Add the right y-axis
-    fig.line(x_curve, x_gaussian, y_range_name="gaussian_range",)
-    
-    output_file("stat_plot.html")
-    show(fig)
+    fig.line(x_curve, x_gaussian, y_range_name="gaussian_range", color= 'red', line_width = 2.5, legend_label='Gaussian distribution')
+    return fig
 
     
 def find_maximum_around_peak(data, peak_location, search_range):
@@ -242,11 +279,13 @@ def find_maximum_around_peak(data, peak_location, search_range):
         float: Maximum value found within the search range.
         int: Index of the maximum value within the search range.
     """
+    numpeaks = 3
     start_index = max(0, peak_location - search_range)
     end_index = min(len(data), peak_location + search_range + 1)
-    max_value = np.max(data[start_index:end_index])
-    max_index = np.argmax(data[start_index:end_index]) + start_index
-    return max_value, max_index
+    max_values = np.partition(data[start_index:end_index], -numpeaks)[-numpeaks:]  # Get the two highest values
+    max_indices = np.where(np.isin(data[start_index:end_index], max_values))[0] + start_index
+    max_index = min(max_indices)  # Select the leftmost index
+    return max_values[0], max_index
 
 
 def create_envelope(signal, window_size):
@@ -284,20 +323,7 @@ def replace_negatives_with_neighbors(lst):
     new_lst = lst.copy()  # Create a copy of the original list
     for i in range(len(lst)):
         if lst[i] < 0:
-            # Find the nearest non-negative neighbors
-            left_neighbor = next((x for x in reversed(lst[:i]) if x >= 0), None)
-            right_neighbor = next((x for x in lst[i:] if x >= 0), None)
-
-            # Replace negative value with the nearest neighbor
-            if left_neighbor is not None and right_neighbor is not None:
-                if abs(lst[i] - left_neighbor) <= abs(lst[i] - right_neighbor):
-                    new_lst[i] = left_neighbor
-                else:
-                    new_lst[i] = right_neighbor
-            elif left_neighbor is not None:
-                new_lst[i] = left_neighbor
-            elif right_neighbor is not None:
-                new_lst[i] = right_neighbor
+            new_lst[i] = np.abs(lst[i])
     return new_lst
 
 

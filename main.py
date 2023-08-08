@@ -117,12 +117,12 @@ def main():
     full_width = 2000
     plot_height = 600
     
-    fig_center = figure(title='Similarness plot - 100 most consistent Transients', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]', width=int(np.floor(full_width/2)), height=plot_height)
+    fig_center = figure(title='Similarness plot - most consistent Beast', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]', width=int(np.floor(full_width/2)), height=plot_height)
     fig_center.output_backend = 'webgl'
     center_fig = plot_centered(fig_center,signal,time, best_peaks, best_series_amps)
     logging.info("center_plot figure created")
     
-    fig_peakdiff = figure(title='Tightness plot - 100 most consistent Transients', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]', width=full_width, height=plot_height)
+    fig_peakdiff = figure(title='Tightness plot - most consistent Beast', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]', width=full_width, height=plot_height)
     fig_peakdiff.output_backend = 'webgl'
     peakdiff_fig = plot_peakdiff(fig_peakdiff,signal,time,best_peaks)
     logging.info("peakdiff figure created")
@@ -134,7 +134,7 @@ def main():
     
     differences = np.diff(timearray)
     peak_amp = normalized_amplitude[peaks]
-    fig_stat = figure(title='stat plot - 100 most consistent Transients', x_axis_label='Transient Time difference[ms]', y_axis_label='Number of elements in Bin', width=int(np.floor(full_width/2)), height=plot_height)
+    fig_stat = figure(title='Statistics plot - most consistent Beast', x_axis_label='Transient Time difference [ms]', y_axis_label='Number of Elements in Bin', width=int(np.floor(full_width/2)), height=plot_height)
     fig_stat.output_backend = 'webgl'
     stat_fig = plot_stat(fig_stat,best_diffs,peak_amp)
     logging.info("stat figure created")
@@ -204,10 +204,10 @@ def plot_waveform(fig, signal, time, peaks,peaktimes,frame_rate,best_series_time
     peak_bpm_best = (60*1000)/peak_differences_best
     x_coordinate = best_series_times[0]/1000
 
-    fig.segment(x0=[x_coordinate], y0=0, x1=[x_coordinate], y1=1, line_width=2, line_dash="dashed", line_color="black")
+    fig.line(x=[x_coordinate,x_coordinate], y=[0,1], line_width=2, line_dash="dashed", line_color="black", legend_label= 'Segment of most consistent Beats')
     x_coordinate = max(best_series_times)/1000
 
-    fig.segment(x0=[x_coordinate], y0=0, x1=[x_coordinate], y1=1, line_width=2, line_dash="dashed", line_color="black")
+    fig.line(x=[x_coordinate,x_coordinate], y=[0,1], line_width=2, line_dash="dashed", line_color="black")
     peak_middles = ((time_xax[peaks[:-1]]+time_xax[peaks[1:]])/2)
     resolution = 0.01
     visible_peaks = np.where((peak_middles >= visible_start) & (peak_middles <= visible_end))
@@ -216,7 +216,7 @@ def plot_waveform(fig, signal, time, peaks,peaktimes,frame_rate,best_series_time
     zoom_factor = 10
     fig.extra_y_ranges = {"peak_diff_range": Range1d(diff_mean-zoom_factor*diff_stdev, diff_mean+zoom_factor*diff_stdev)}
     fig.add_layout(LinearAxis(y_range_name="peak_diff_range", axis_label="BPM [Hz]"), 'right')  # Add the right y-axis
-    fig.vbar(x=peak_middles, top=peak_bpm, width=1/peak_bpm, y_range_name="peak_diff_range", color = 'green', fill_alpha=0.75, legend_label='BPM [Hz]')
+    fig.vbar(x=peak_middles, top=peak_bpm, width=1/peak_bpm, y_range_name="peak_diff_range", color = 'green', fill_alpha=0.75, legend_label='BPM')
 
     #fig.extra_y_ranges = {"peak_diff_range": Range1d(start=(1-resolution)*scaling_factor, end=(1+resolution)*scaling_factor)}
 

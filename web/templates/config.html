@@ -48,11 +48,6 @@
             cursor: pointer;
         }
 
-         #thresholdLabel {
-            margin-top: 10px;
-            font-size: 14px;
-            text-align: center;
-        }
     </style>
 </head>
 <body>
@@ -71,12 +66,21 @@
                 <input type="text" id="output_filename" name="output_filename" value={{ output_filename }}>
             </label>
             </br>
-            <label for="threshold">Detection sensitivity:
+            <label for="threshold">Sensitivity:
                 <b><span id="thresholdLabel">0.25</span></b>
             </label>
             <input type="range" id="threshold" name="threshold" min="0" max="1" step="0.05" value="0.25">
 
-            <label for="rounding">Rounding Precision:
+            <label for="roundness">Roundness:
+                <b><span id="roundnessLabel">100</span></b>
+            </label>
+            <input type="range" id="roundness" name="roundness" min="0" max="200" step="5" value="100">
+
+            <label for="sample">Sample size:
+                <input type="number" id="sample" name="sample" step="1" value="100" required>
+            </label>
+
+            <label for="rounding">Number of decimals:
                 <input type="number" id="rounding" name="rounding" step="1" value="6" required>
             </label>
             <input type="hidden" name="uuid" value="{{ uuid }}">
@@ -85,9 +89,23 @@
         </form>
     </div>
 
+    <!--
+    Notes:
+        Additional options to add: (dropdown)
+            Channel selector
+            Downsampling rate
+            Number of buckets
+            web mode off
+            maybe height/width
+            video mode on
+    -->
+
     <script>
         const thresholdInput = document.getElementById('threshold');
         const thresholdLabel = document.getElementById('thresholdLabel');
+        const roundnessInput = document.getElementById('roundness');
+        const roundnessLabel = document.getElementById('roundnessLabel');
+
 
         // Update thresholdLabel with the current slider value
         thresholdInput.addEventListener('input', () => {
@@ -98,6 +116,17 @@
 
             const newThresholdLabel = document.createTextNode(thresholdInput.value);
             thresholdLabel.appendChild(newThresholdLabel);
+        });
+
+        // Update roundnessLabel with the current slider value
+        roundnessInput.addEventListener('input', () => {
+            // Remove the existing threshold label if it exists
+            if (roundnessLabel.firstChild) {
+                roundnessLabel.removeChild(roundnessLabel.firstChild);
+            }
+
+            const newRoundnessLabel = document.createTextNode(roundnessInput.value);
+            roundnessLabel.appendChild(newRoundnessLabel);
         });
     </script>
 

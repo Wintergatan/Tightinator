@@ -1,49 +1,135 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Waiting...</title>
+    <title>Running peak detection...</title>
     <style>
         body {
             font-family: sans-serif;
             background-color: lightgrey;
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
             height: 100vh;
             margin: 0;
         }
+
+        #spinnerContainer {
+            position: relative;
+            width: 100%;
+        }
+
+        #spinner {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        #spinnerImage {
+            width: 400px; /* Adjust the spinner image size as needed */
+            height: 225px;
+            animation: spin 2s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        #progressBarContainer {
+            margin-top: 20px;
+            width: 50%; /* Adjust the width of the progress bar container */
+            height: 20px;
+            border: 1px solid #ccc;
+            background-color: #f5f5f5;
+            display: none;
+        }
+
+        #progressBar {
+            height: 100%;
+            width: 0;
+            background-color: #007bff;
+        }
     </style>
 </head>
 <body>
     <h1>Processing your request...</h1>
+
+    </br>
+
+    <div id="spinner">
+        <img id="spinnerImage" src="/static/assets/spinner.png" alt="Loading...">
+    </div>
+
+    <div id="progressBarContainer">
+        <div id="progressBar"></div>
+    </div>
+
     <script>
-    // Get the UUID from the query parameter
+        // Get the UUID from the query parameter
+        const uuid = "{{ uuid }}";
+        const output_filename = "{{ output_filename }}";
+        console.log(uuid, output_filename);
 
-    const uuid = "{{ uuid }}";
-    console.log(uuid)
+        // Function to check if the file is ready for download
+        function checkDownloadStatus(triesLeft) {
+            const spinner = document.getElementById('spinner');
+            const progressBarContainer = document.getElementById('progressBarContainer');
+            const progressBar = document.getElementById('progressBar');
+            const message = document.getElementById('message');
+            const downloadLink = document.getElementById('downloadLink');
+            const downloadButton = document.getElementById('downloadButton');
 
-    // Function to check if the file is ready for download
-    function checkDownloadStatus() {
-        fetch(`/download/${uuid}`)
-            .then(response => {
-                if (response.ok) {
-                    // File is ready, initiate download
-                    window.location.href = `/download/${uuid}`;
-                } else {
-                    // File is not yet ready, continue checking
-                    setTimeout(checkDownloadStatus, 1000); // Check again in 1 second
-                }
-            })
-            .catch(error => {
-                // File is not yet ready, continue checking
-                setTimeout(checkDownloadStatus, 1000); // Check again in 1 second
-            });
-    }
+            fetch(`/download/${uuid}`)
+                .then(response => {
+                    if (response.ok) {
+                        // File is ready, show download link
+                        spinner.style.display = 'none';
+                        progressBarContainer.style.display = 'none';
+                        message.textContent = 'Process completed successfully!';
+                        downloadLink.style.display = 'block';
+                        downloadButton.href = `/download/${uuid}`;
+                    } else if (triesLeft > 0) {
+                        // Update progress bar
+                        const progressPercentage = ((60 - triesLeft) / 60) * 100;
+                        progressBar.style.width = progressPercentage + '%';
 
-    // Call the function when the page loads
-    setTimeout(() => checkDownloadStatus(60), 5000);
+                        // File is not yet ready, continue checking
+                        setTimeout(() => checkDownloadStatus(triesLeft - 1), 1000); // Check again in 1 second
+                    } else {
+                        // Timeout reached, show error message
+                        spinner.style.display = 'none';
+                        progressBarContainer.style.display = 'none';
+                        message.textContent = 'Process timed out. Please try again later.';
+                    }
+                })
+                .catch(error => {
+                    if (triesLeft > 0) {
+                        // Update progress bar
+                        const progressPercentage = ((60 - triesLeft) / 60) * 100;
+                        progressBar.style.width = progressPercentage + '%';
+
+                        // File is not yet ready, continue checking
+                        setTimeout(() => checkDownloadStatus(triesLeft - 1), 1000); // Check again in 1 second
+                    } else {
+                        // Timeout reached, show error message
+                        spinner.style.display = 'none';
+                        progressBarContainer.style.display = 'none';
+                        // Redirect to the results page with the failure message
+                        const redirectUrl = `/result/${uuid}/${output_filename}?failure=true`;
+                        window.location.href = redirectUrl;
+                        message.textContent = 'Process timed out. Please try again later.';
+                    }
+                });
+        }
+
+        // Call the function when the page loads
+        setTimeout(() => {
+            const spinner = document.getElementById('spinner');
+            const progressBarContainer = document.getElementById('progressBarContainer');
+            spinner.style.display = 'block';
+            progressBarContainer.style.display = 'block';
+            checkDownloadStatus(2);
+        }, 5000);
     </script>
-
-
 </body>
 </html>

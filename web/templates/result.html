@@ -20,7 +20,7 @@
         }
 
         #downloadLink {
-            display: none;
+            display: inline-block;
             text-align: center;
             margin-top: 20px;
         }
@@ -48,13 +48,25 @@
             margin-bottom: 20px;
         }
 
+        #spinnerContainer {
+            position: relative;
+            width: 100%;
+            height: 800px; /* Set the same height as the iframe */
+        }
+
         #spinner {
-            margin-top: 20px;
-            text-align: center;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
 
         #spinnerImage {
-            width: 400px;
+            width: 400px; /* Adjust the spinner image size as needed */
             height: 225px;
             animation: spin 2s linear infinite;
         }
@@ -63,22 +75,58 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+
+        .failure-message {
+            font-size: 24px;
+            color: red;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+            #homeButton {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        #homeLink {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+        }
     </style>
 
 </head>
 <body>
-    <h1>Process Result</h1>
+    </br>
 
-    <div id="spinner">
-        <img id="spinnerImage" src="/static/assets/spinner.png" alt="Loading...">
-    </div>
+    {% if failure %}
+        <h1>Process Failure</h1>
+        <p class="failure-message">There was no retreivable timing file or results within the time allowed.</p>
+        <p>Please send Tom this page and ID: {{ uuid }}</p>
+        <div id="homeButton">
+            <a id="homeLink" href="{{ url_for('index') }}">Upload another file</a>
+        </div>
+    {% endif %}
 
-    <div id="message"></div>
-    <div id="downloadLink">
-        <a id="downloadButton" href="" download>Download CSV</a>
-    </div>
+    {% if not failure %}
+        <h1>Peak Detection Results</h1>
 
-    <iframe id="summaryFrame" src="{{ url_for('static', filename='upload/' + uuid + '/summary.html') }}" width="100%" height="800px"></iframe>
+        <div id="downloadLink">
+            <a id="downloadButton" href="/download/{{ uuid }}/{{ output_filename }}" download>Download CSV</a>
+        </div>
+
+        <div id="spinnerContainer">
+            <div id="spinner">
+                <img id="spinnerImage" src="/static/assets/spinner.png" alt="Loading...">
+            </div>
+            <iframe id="summaryFrame" src="/static/upload/summary.html" width="100%" height="100%"></iframe>
+        </div>
+    {% endif %}
 
     <script>
         const uuid = "{{ uuid }}";
@@ -92,38 +140,6 @@
         console.log(uuid)
         console.log(output_filename)
 
-        function checkDownloadStatus(triesLeft) {
-            fetch(`/download/${uuid}/${output_filename}`)
-                .then(response => {
-                    if (response.ok) {
-                        // File is ready, show download link
-                        spinner.style.display = 'none';
-                        message.textContent = 'Process completed successfully!';
-                        downloadLink.style.display = 'block';
-                        downloadButton.href = `/download/${uuid}/${filename}`;
-                    } else if (triesLeft > 0) {
-                        // File is not yet ready, continue checking
-                        setTimeout(() => checkDownloadStatus(triesLeft - 1), 1000); // Check again in 1 second
-                    } else {
-                        // Timeout reached, show error message
-                        spinner.style.display = 'none';
-                        message.textContent = 'Process timed out. Please try again later.';
-                    }
-                })
-                .catch(error => {
-                    if (triesLeft > 0) {
-                        // File is not yet ready, continue checking
-                        setTimeout(() => checkDownloadStatus(triesLeft - 1), 1000); // Check again in 1 second
-                    } else {
-                        // Timeout reached, show error message
-                        spinner.style.display = 'none';
-                        message.textContent = 'Process timed out. Please try again later.';
-                    }
-                });
-        }
-
-        // Call the function when the page loads with 60 tries (60 seconds)
-        setTimeout(() => checkDownloadStatus(60), 5000);
 
         // Show the summary frame and hide the spinner when it's loaded
         summaryFrame.addEventListener('load', () => {

@@ -59,18 +59,31 @@ def run(uuid):
 
     try:
         process = subprocess.Popen(debug_command, text=True)
-        processes[uuid] = (process, time.time())
-        thread = threading.Thread(target=wait_for_process, args=(uuid, process))
-        thread.start()
 
-        # Redirect to the "Running..." page
         return redirect(url_for('running', uuid=uuid, output_filename=output_filename))
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 @app.route('/running/<uuid>/<output_filename>')
-def running(uuid,output_filename):
-    process, process_output = processes.get(uuid, (None, ""))
+def running(uuid, output_filename):
+    output_path = os.path.join(app.root_path, 'static', 'upload', uuid, output_filename)
+
+    while not os.path.exists(output_path):
+        return render_template('running.html', uuid=uuid, output_filename=output_filename)
+        time.sleep(1)  # Wait for 1 second before checking again
+
+    return redirect(url_for('result', uuid=uuid, output_filename=output_filename))
+
+'''
+@app.route('/running/<uuid>/<output_filename>')
+def running(uuid, output_filename):
+
+    csv_path = os.path.join(app.root_path, 'static', 'upload', uuid, output_filename)
+
+    if os.path.exists(csv_path):
+        return redirect(url_for('result', uuid=uuid, output_filename=output_filename))  # Redirect to the "Process Complete" page
+    else:
+        return render_template('running.html', uuid=uuid, output_filename=output_filename)   # Continue rendering the "Running..." page
 
     if process is None:
         return render_template('result.html', uuid=uuid, output="Process not found")
@@ -79,10 +92,14 @@ def running(uuid,output_filename):
         return render_template('running.html', uuid=uuid, output_filename=output_filename, process_output=process_output)
     else:
         return render_template('result.html', uuid=uuid, output_filename=output_filename, output=process_output)
-
+'''
 def wait_for_process(uuid, process):
     process.wait()
 
+@app.route('/result/<uuid>/<output_filename>')
+def result(uuid, output_filename):
+    failure = request.args.get('failure', default=False, type=bool)
+    return render_template('result.html', uuid=uuid, output_filename=output_filename, failure=failure)
 
 @app.route('/download/<uuid>/<output_filename>')
 def download(uuid,output_filename):

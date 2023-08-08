@@ -58,21 +58,29 @@
 <body>
 
     <div id="spinner" style="display: none;">
-    <img src="../static/assets/spinner.png" alt="Loading...">
+    <img src="../../static/assets/spinner.png" alt="Loading...">
     </div>
 
     <div>
-        <h1>Configuration</h1>
-        <form id="configForm" action="{{ url_for('run', uuid=uuid) }}" method="post">
-            <input type="hidden" name="uuid" value="{{ uuid }}">
+        <form id="configForm" action="{{ url_for('run', uuid=uuid, filename=filename, output_filename=output_filename) }}" method="post">
+            <h1>Peak detection settings:</h1>
+            <p>File to analyze: {{ filename }}</p>
+
+
+            <label for="custom_parameter">Output filename:
+                <input type="text" id="output_filename" name="output_filename" value={{ output_filename }}>
+            </label>
+            </br>
             <label for="threshold">Detection sensitivity:
-                <b><span id="thresholdLabel">0.25</span></b> <!-- Place the threshold label inside the label -->
+                <b><span id="thresholdLabel">0.25</span></b>
             </label>
             <input type="range" id="threshold" name="threshold" min="0" max="1" step="0.05" value="0.25">
 
-            <label for="rounding">Rounding Precision:</label>
-            <input type="number" id="rounding" name="rounding" step="1" value="6" required>
-
+            <label for="rounding">Rounding Precision:
+                <input type="number" id="rounding" name="rounding" step="1" value="6" required>
+            </label>
+            <input type="hidden" name="uuid" value="{{ uuid }}">
+            <input type="hidden" name="filename" value="{{ filename }}">
             <button type="submit">Generate CSV</button>
         </form>
     </div>
@@ -94,7 +102,6 @@
     </script>
 
     <script>
-        const uuid = "{{ uuid }}";
         const configForm = document.getElementById('configForm'); // Get the form element
 
         configForm.addEventListener('submit', function(e) {
@@ -128,8 +135,15 @@
                 uuidInput.name = 'uuid';
                 uuidInput.value = uuid;
 
+                // Create an input element for the UUID
+                const filenameInput = document.createElement('input');
+                filenameInput.type = 'hidden';
+                filenameInput.name = 'filename';
+                filenameInput.value = filename;
+
                 // Append the input element to the form
                 form.appendChild(uuidInput);
+                form.appendChild(filenameInput);
 
                 // Append the form to the document and submit it
                 document.body.appendChild(form);

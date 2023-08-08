@@ -142,9 +142,10 @@
                             // Extract the UUID from the response JSON
                             const response = JSON.parse(xhr.responseText);
                             const uuid = response.uuid;
+                            const filename = response.filename;
 
                             // Redirect to the config endpoint with the UUID
-                            window.location.href = `/config/${uuid}`;
+                            window.location.href = `/config/${uuid}/${filename}`;
                         } else {
                             loadingSpinner.style.display = 'none';
                             progressBar.style.display = 'none';

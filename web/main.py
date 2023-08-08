@@ -85,7 +85,7 @@ def main():
 
     combined_array = np.column_stack((timearray, differences))
 
-    output_filename = filename[:-4]+".csv"
+    #output_filename = filename[:-4]+".csv"
     logging.info("Saving output values to {}".format(output_filename))
     np_fmt = "%1.{}f".format(float_prec)
     np.savetxt(output_filename, combined_array, delimiter=",", header="Times[ms],differences[ms]", fmt=np_fmt, comments="")

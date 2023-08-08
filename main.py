@@ -110,14 +110,20 @@ def main():
         else:
             peaks.append(max_index)
             peaktimes.append(time[max_index])
+    if(len(peaks) < len_series):
+        len_series = peaks 
     #print(peaks)
     #print(peaktimes)
     peaks = np.array(peaks)
     logging.info("Refined to {} peaks, calculating times...".format(len(peaks)))
+
     timearray = peaktimes
     differences = np.diff(timearray)
+    accel = np.gradient(differences)    
     differences = np.append(differences, 0)
-
+    stdev = np.zeros(len(peaks))
+ 
+    accel= np.append(accel, 0)
     signal = normalized_amplitude
     segment_width = 1000
 
@@ -129,13 +135,18 @@ def main():
     
     best_peaks = peaks[start_of_best_series:start_of_best_series+len_series]
     best_series_times = timearray[start_of_best_series:start_of_best_series+len_series]
+    best_series_times_csv = np.pad(best_series_times,(0,len(peaks)-len_series),'constant')
     best_diffs = diffs[start_of_best_series:start_of_best_series+len_series]
+    stdev[0] = np.std(best_diffs)
+    stdev[1] = np.std(differences)
+    stdev[3] = start_of_best_series
+    stdev[4] = start_of_best_series+len_series
     best_series_amps = signal[best_peaks]
-    combined_array = np.column_stack((timearray, differences))
+    combined_array = np.column_stack((timearray,best_series_times_csv,stdev))
     #output_filename = filename[:-4]+".csv"
     logging.info("Saving output values to {}".format(output_filename))
     np_fmt = "%1.{}f".format(float_prec)
-    np.savetxt(output_filename, combined_array, delimiter=",", header="Times[ms],differences[ms]", fmt=np_fmt, comments="")
+    np.savetxt(output_filename, combined_array, delimiter=",", header="Times[ms],Differences[ms],stdevandmore[ms]", fmt=np_fmt, comments="")
 
 
 
@@ -223,29 +234,35 @@ def plot_waveform(fig, signal, time, peaks,peaktimes,frame_rate,best_series_time
     visible_end = max(time_xax)
     visible_indices = np.where((time_xax >= visible_start) & (time_xax <= visible_end))
     fig.line(time_cut, signal_cut, legend_label='Waveform')
-    fig.circle(time_xax[peaks], signal[peaks], legend_label='Detected Peaks', color = 'red')
     fig.y_range = Range1d(start=0, end=1)
     peak_differences = np.diff(peaktimes)
     peak_differences_best = np.diff(best_series_times)
     #peak_differences_bpm = np.where(peak_differences == 0, -1, peak_differences) # a very dirty fix
     peak_bpm = (60*1000)/peak_differences
     peak_bpm_best = (60*1000)/peak_differences_best
+    peak_middles = ((time_xax[peaks[:-1]]+time_xax[peaks[1:]])/2)
+    resolution = 0.01
+    visible_peaks = np.where((peak_middles >= visible_start) & (peak_middles <= visible_end))
+    diff_mean = np.mean(peak_bpm_best)
+    diff_stdev = np.std(peak_bpm_best)
+    accel = np.gradient(peak_bpm)
+    norm_accel = accel/max(accel)
+    accel_best = np.gradient(peak_bpm_best)
+    norm_accel_best = accel/max(accel_best)
+    zoom_factor = 10
+    fig.extra_y_ranges = {"peak_diff_range": Range1d(diff_mean-zoom_factor*diff_stdev, diff_mean+zoom_factor*diff_stdev)}
+    fig.add_layout(LinearAxis(y_range_name="peak_diff_range", axis_label="BPM [Hz]"), 'right')  # Add the right y-axis
+    fig.vbar(x=peak_middles, top=peak_bpm, width=1/peak_bpm, y_range_name="peak_diff_range", color = 'green', fill_alpha=0.75, legend_label='BPM')
+    fig.line(x=peak_middles,y=(norm_accel_best*0.10)+0.5, line_color="darkgoldenrod", legend_label= 'acceleration of BPM', line_width=3)
+    fig.line(x=[0,len(time)],y=[0.5,0.5], line_color="black", line_dash="dotted")
+    fig.circle(time_xax[peaks], signal[peaks], legend_label='Detected Peaks', color = 'red')
     x_coordinate = best_series_times[0]/1000
 
     fig.line(x=[x_coordinate,x_coordinate], y=[0,1], line_width=2, line_dash="dashed", line_color="black", legend_label= 'Segment of most consistent Beats')
     x_coordinate = max(best_series_times)/1000
 
     fig.line(x=[x_coordinate,x_coordinate], y=[0,1], line_width=2, line_dash="dashed", line_color="black")
-    peak_middles = ((time_xax[peaks[:-1]]+time_xax[peaks[1:]])/2)
-    resolution = 0.01
-    visible_peaks = np.where((peak_middles >= visible_start) & (peak_middles <= visible_end))
-    diff_mean = np.mean(peak_bpm_best)
-    diff_stdev = np.std(peak_bpm_best)
-    zoom_factor = 10
-    fig.extra_y_ranges = {"peak_diff_range": Range1d(diff_mean-zoom_factor*diff_stdev, diff_mean+zoom_factor*diff_stdev)}
-    fig.add_layout(LinearAxis(y_range_name="peak_diff_range", axis_label="BPM [Hz]"), 'right')  # Add the right y-axis
-    fig.vbar(x=peak_middles, top=peak_bpm, width=1/peak_bpm, y_range_name="peak_diff_range", color = 'green', fill_alpha=0.75, legend_label='BPM')
-
+    
     #fig.extra_y_ranges = {"peak_diff_range": Range1d(start=(1-resolution)*scaling_factor, end=(1+resolution)*scaling_factor)}
 
 
@@ -291,12 +308,14 @@ def plot_stat(fig, peak_times, y_data,nbins):
     row_spacing = max(x_gaussian)/(num_elements_in_highest_bin)
     fig.y_range = Range1d(start=0, end=num_elements_in_highest_bin)
     peakamps =y_data[1:]
-    fig.circle(x_data,(peakamps / np.max(np.abs(peakamps)))*(num_elements_in_highest_bin-1), size=10, fill_color='red', legend_label='Peak Transient Time')
     
     fig.extra_y_ranges = {"gaussian_range": Range1d(start=0, end=max(x_gaussian))}
     fig.add_layout(LinearAxis(y_range_name="gaussian_range", axis_label="Probability Density [a.u.]"), 'right')  # Add the right y-axis
     fig.line(x_curve, x_gaussian, y_range_name="gaussian_range", color= 'red', line_width = 2.5, legend_label='Gaussian distribution')
+    fig.circle(x_data,(peakamps / np.max(np.abs(peakamps)))*(num_elements_in_highest_bin-1), size=10, fill_color='red', legend_label='Peak Transient Time')
+
     fig.xaxis.ticker.num_minor_ticks = 9
+    
     return fig
 
     

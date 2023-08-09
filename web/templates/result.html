@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Process Result</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            background-color: lightgrey;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        #message {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+
+        h1 {
+            margin-bottom: 20px;
+        }
+
+        #spinnerContainer {
+            position: relative;
+            width: 100%;
+            height: 800px; /* Set the same height as the iframe */
+        }
+
+        #spinner {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column; /* Align items vertically */
+            justify-content: center;
+            align-items: center;
+        }
+
+        #spinnerImage {
+            width: 400px; /* Adjust the spinner image size as needed */
+            height: 225px;
+            animation: spin 2s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .failure-message {
+            font-size: 24px;
+            color: red;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        #downloadButton {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #fff;
+            color: black;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            text-decoration: none;
+            margin-bottom: 20px;
+        }
+
+        #downloadLink {
+            display: inline-block;
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        #homeButton {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        #homeLink {
+            display: inline-block;
+            padding: 10px 20px;
+            margin-left: 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            text-decoration: none;
+        }
+    </style>
+
+</head>
+<body>
+    </br>
+
+    {% if failure %}
+        <h1>Process Failure</h1>
+        <p class="failure-message">There was no retreivable timing file or results within the time allowed.</p>
+        <p>Please send Tom this page and ID: {{ uuid }}</p>
+        <div id="homeButton">
+            <a id="homeLink" href="{{ url_for('index') }}">Upload another file</a>
+        </div>
+    {% endif %}
+
+    {% if not failure %}
+        <h1>Peak Detection Results</h1>
+
+        <div id="downloadLink">
+            <a id="downloadButton" href="/download/{{ uuid }}/{{ output_filename }}" download>Download {{ output_filename }}</a>
+            <a id="homeLink" href="{{ url_for('index') }}">Upload another file</a>
+        </div>
+
+        <div id="spinnerContainer">
+            <div id="spinner">
+                <h2>Loading plots...</h2>
+                <img id="spinnerImage" src="/static/assets/spinner.png" alt="Loading...">
+            </div>
+            <iframe id="summaryFrame" src="/static/upload/summary.html" width="100%" height="100%"></iframe>
+        </div>
+    {% endif %}
+
+    <script>
+        const uuid = "{{ uuid }}";
+        const output_filename = "{{ output_filename }}";
+        const spinner = document.getElementById('spinner');
+        const message = document.getElementById('message');
+        const downloadLink = document.getElementById('downloadLink');
+        const downloadButton = document.getElementById('downloadButton');
+        const summaryFrame = document.getElementById('summaryFrame');
+
+        console.log(uuid)
+        console.log(output_filename)
+
+
+        // Show the summary frame and hide the spinner when it's loaded
+        summaryFrame.addEventListener('load', () => {
+            spinner.style.display = 'none';
+            summaryFrame.style.display = 'inline-block';
+        });
+    </script>
+
+</body>
+</html>

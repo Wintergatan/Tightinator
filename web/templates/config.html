@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Configuration</title>
+    <title>Peak detection settings:</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <style>
         body {
             font-family: sans-serif;
@@ -32,8 +33,15 @@
         }
 
         input[type="number"] {
-            width: 60px;
-            padding: 10px;
+            width: 20%;
+            padding: 5px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        input[type="text"] {
+            width: 60%;
+            padding: 5px;
             border: 1px solid #ccc;
             border-radius: 5px;
         }
@@ -44,42 +52,184 @@
             background-color: #007bff;
             color: white;
             border: none;
-            border-radius: 5px;
+            border-radius: 20px;
             cursor: pointer;
+            font-size: 16px;
+            border: solid;
+            border-color: #007bff;
         }
 
-         #thresholdLabel {
+        #homeButton {
             margin-top: 10px;
-            font-size: 14px;
-            text-align: center;
         }
+
+        #homeLink {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #fff;
+            color: black;
+            border: solid;
+            border-color: #007bff;
+            border-radius: 20px;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .triangle-container {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            margin: 0
+        }
+
+        .triangle {
+            display: inline-block;
+            width: 0;
+            height: 0;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-bottom: 5px solid black;
+            vertical-align: middle;
+            margin-right: 5px;
+            transform: rotate(90deg);
+            transform-origin: center center;
+            transition: transform 0.3s;
+        }
+
+        .expanded .triangle {
+            transform: rotate(180deg);
+        }
+
+        .toggle-container {
+            cursor: pointer;
+            display: inline-block;
+            max-height: 0;
+            transition: max-height 0.3s ease-in-out;
+        }
+
     </style>
 </head>
 <body>
 
     <div id="spinner" style="display: none;">
-    <img src="/static/assets/spinner.png" alt="Loading...">
+    <img src="../../static/assets/spinner.png" alt="Loading...">
     </div>
 
     <div>
-        <h1>Configuration</h1>
-        <form id="configForm" action="{{ url_for('run', uuid=uuid) }}" method="post">
-            <input type="hidden" name="uuid" value="{{ uuid }}">
-            <label for="threshold">Detection sensitivity:
-                <b><span id="thresholdLabel">0.25</span></b> <!-- Place the threshold label inside the label -->
+        <form id="configForm" action="{{ url_for('run', uuid=uuid, filename=filename, output_filename=output_filename) }}" method="post">
+            <h1>Peak detection settings:</h1>
+            <p>File to analyze: {{ filename }}</p>
+
+
+            <label for="custom_parameter">Output filename:
+                <input type="text" id="output_filename" name="output_filename" value={{ output_filename }}>
+            </label>
+            </br>
+            <label for="threshold">Sensitivity:
+                <b><span id="thresholdLabel">0.25</span></b>
             </label>
             <input type="range" id="threshold" name="threshold" min="0" max="1" step="0.05" value="0.25">
 
-            <label for="rounding">Rounding Precision:</label>
-            <input type="number" id="rounding" name="rounding" step="1" value="6" required>
+            <label for="roundness">Roundness:
+                <b><span id="roundnessLabel">100</span></b>
+            </label>
+            <input type="range" id="roundness" name="roundness" min="0" max="200" step="5" value="100">
 
-            <button type="submit">Generate CSV</button>
+            <label for="sample">Sample size:
+                <input type="number" id="sample" name="sample" step="1" value="100" required>
+            </label>
+
+            <label for="rounding">Number of decimals:
+                <input type="number" id="rounding" name="rounding" step="1" value="6" required>
+            </label>
+
+            <!-- Expand/Collapse button for advanced options -->
+            <div class="toggle-container" onclick="toggleAdvancedOptions()">
+                <div class="triangle-container">
+                    <div class="triangle"></div>
+                    <h3 style="margin: 0;">Advanced Options</h3>
+                </div>
+            </div>
+            </br>
+            <!-- Advanced Options section -->
+            <div id="advancedOptions" class="expanded" style="display: none;">
+                </br>
+                <label for="channelNumber">Channel Number:
+                    <input type="number" id="channelNumber" name="channelNumber" value="0">
+                </label>
+                <label for="downsampleRate">Downsampling Rate:
+                    <input type="number" id="downsampleRate" name="downsampleRate" value="8">
+                </label>
+                <label for="numBuckets">Number of Buckets:
+                    <input type="number" id="numBuckets" name="numBuckets" value="9">
+                </label>
+                <label for="numPeaks">Number of Peaks:
+                    <input type="number" id="numPeaks" name="numPeaks" value="3">
+                </label>
+                <label for="webMode">Web Mode:
+                    <input type="checkbox" id="webMode" name="webMode" checked>
+                </label>
+                <label for="width">Width:
+                    <input type="number" id="xwide" name="xwide" value="5">
+                </label>
+                <label for="height">Height:
+                    <input type="number" id="yhigh" name="yhigh" value="5">
+                </label>
+            </div>
+
+            <input type="hidden" name="uuid" value="{{ uuid }}">
+            <input type="hidden" name="filename" value="{{ filename }}">
+
+            <div id="homeButton">
+                <button type="submit">Generate CSV</button>
+                <a id="homeLink" href="{{ url_for('index') }}">Upload another file</a>
+            </div>
         </form>
     </div>
+
+    <!--
+    Notes:
+        Additional options to add: (dropdown)
+            Channel selector
+            Downsampling rate
+            Number of buckets
+            -n number of peaks
+            web mode off
+            maybe height/width
+            video mode on
+    -->
+    <script>
+        document.getElementById("xwide").value = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0)
+        document.getElementById("yhigh").value = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0)
+    </script>
+
+    <script>
+        function toggleAdvancedOptions() {
+            const advancedOptions = document.getElementById('advancedOptions');
+            advancedOptions.style.display = advancedOptions.style.display === 'none' ? 'block' : 'none';
+            const triangle = document.querySelector('.triangle');
+            triangle.classList.toggle('expanded');
+        }
+                const toggleAdvancedContainer = document.querySelector('.toggle-container');
+        const triangleContainer = document.querySelector('.triangle-container');
+        const advancedOptionsHeading = document.querySelector('.advanced-options-heading');
+
+        triangleContainer.addEventListener('click', () => {
+            toggleAdvancedContainer.classList.toggle('expanded');
+        });
+
+        advancedOptionsHeading.addEventListener('click', () => {
+            toggleAdvancedContainer.classList.toggle('expanded');
+        });
+    </script>
+    </script>
 
     <script>
         const thresholdInput = document.getElementById('threshold');
         const thresholdLabel = document.getElementById('thresholdLabel');
+        const roundnessInput = document.getElementById('roundness');
+        const roundnessLabel = document.getElementById('roundnessLabel');
+
 
         // Update thresholdLabel with the current slider value
         thresholdInput.addEventListener('input', () => {
@@ -91,10 +241,20 @@
             const newThresholdLabel = document.createTextNode(thresholdInput.value);
             thresholdLabel.appendChild(newThresholdLabel);
         });
+
+        // Update roundnessLabel with the current slider value
+        roundnessInput.addEventListener('input', () => {
+            // Remove the existing threshold label if it exists
+            if (roundnessLabel.firstChild) {
+                roundnessLabel.removeChild(roundnessLabel.firstChild);
+            }
+
+            const newRoundnessLabel = document.createTextNode(roundnessInput.value);
+            roundnessLabel.appendChild(newRoundnessLabel);
+        });
     </script>
 
     <script>
-        const uuid = "{{ uuid }}";
         const configForm = document.getElementById('configForm'); // Get the form element
 
         configForm.addEventListener('submit', function(e) {
@@ -128,8 +288,15 @@
                 uuidInput.name = 'uuid';
                 uuidInput.value = uuid;
 
+                // Create an input element for the UUID
+                const filenameInput = document.createElement('input');
+                filenameInput.type = 'hidden';
+                filenameInput.name = 'filename';
+                filenameInput.value = filename;
+
                 // Append the input element to the form
                 form.appendChild(uuidInput);
+                form.appendChild(filenameInput);
 
                 // Append the form to the document and submit it
                 document.body.appendChild(form);

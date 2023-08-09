@@ -1,3 +1,5 @@
+
+
 <!DOCTYPE html>
 <html>
 <head>
@@ -46,8 +48,19 @@
         #checkmark {
             display: none;
             margin-top: 20px;
-            font-size: 50px;
+            font-size: 500px;
             color: green;
+        }
+
+        #githubBadge {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background-color: #fff;
+            color: black;
+            padding: 5px 10px;
+            border-radius: 10px;
+            text-decoration: none;
         }
     </style>
 </head>
@@ -57,6 +70,7 @@
         <form method="POST" enctype="multipart/form-data">
             <input type="file" name="file" id="fileInput" accept=".wav" style="display:none;">
         </form>
+        <button id="filePickerButton">Or Choose File</button>
     </div>
 
     <div id="loadingSpinner">
@@ -68,6 +82,12 @@
 
     <div id="message" style="display: none;"></div>
 
+    <!-- GitHub badge link -->
+    <a href="https://github.com/YanFett/Wintergatan_data_analysis" id="githubBadge">
+        <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub Logo" style="width: 20px; vertical-align: middle;">
+        View source on GitHub
+    </a>
+
     <script>
         const dropArea = document.getElementById('dropArea');
         const fileInput = document.getElementById('fileInput');
@@ -75,6 +95,59 @@
         const spinnerImage = document.getElementById('spinnerImage');
         const progressBar = document.getElementById('progressBar');
         const checkmark = document.getElementById('checkmark');
+        const filePickerButton = document.getElementById('filePickerButton');
+
+        filePickerButton.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+
+            if (file.type === 'audio/wav') {
+                const formData = new FormData();
+                formData.append('file', file);
+
+                // Show loading spinner and hide drop area
+                dropArea.style.display = 'none';
+                loadingSpinner.style.display = 'block';
+
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', '/', true);
+                xhr.upload.onprogress = function (e) {
+                    if (e.lengthComputable) {
+                        const percent = (e.loaded / e.total) * 100;
+                        progressBar.style.width = percent + '%';
+                    }
+                };
+
+                xhr.onreadystatechange = function () {
+                    if (xhr.readyState === XMLHttpRequest.DONE) {
+                        if (xhr.status === 200) {
+                            loadingSpinner.style.display = 'none';
+                            progressBar.style.display = 'none';
+                            checkmark.style.display = 'block';
+
+                            // Extract the UUID from the response JSON
+                            const response = JSON.parse(xhr.responseText);
+                            const uuid = response.uuid;
+                            const filename = response.filename;
+
+                            // Redirect to the config endpoint with the UUID
+                            window.location.href = `/config/${uuid}/${filename}`;
+                        } else {
+                            loadingSpinner.style.display = 'none';
+                            progressBar.style.display = 'none';
+                            console.log('Upload failed');
+                        }
+                    }
+                };
+
+                xhr.send(formData);
+            } else {
+                console.log('Invalid file type. Please select a .wav file.');
+            }
+        });
 
         dropArea.addEventListener('dragover', (e) => {
             e.preventDefault();
@@ -123,9 +196,10 @@
                             // Extract the UUID from the response JSON
                             const response = JSON.parse(xhr.responseText);
                             const uuid = response.uuid;
+                            const filename = response.filename;
 
                             // Redirect to the config endpoint with the UUID
-                            window.location.href = `/config/${uuid}`;
+                            window.location.href = `/config/${uuid}/${filename}`;
                         } else {
                             loadingSpinner.style.display = 'none';
                             progressBar.style.display = 'none';

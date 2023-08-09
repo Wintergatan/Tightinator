@@ -85,27 +85,27 @@ def main():
 
     combined_array = np.column_stack((timearray, differences))
 
-    output_filename = filename[:-4]+".csv"
+    #output_filename = filename[:-4]+".csv"
     logging.info("Saving output values to {}".format(output_filename))
     np_fmt = "%1.{}f".format(float_prec)
     np.savetxt(output_filename, combined_array, delimiter=",", header="Times[ms],differences[ms]", fmt=np_fmt, comments="")
-    
+
     '''
     fig_center = figure(title='Similarness plot', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]')
     fig_center.output_backend = 'webgl'
     plot_centered(fig_center,signal,time,peaks)
     logging.info("center_plot exported")
-    
+
     fig_peakdiff = figure(title='Tightness plot', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]')
     fig_peakdiff.output_backend = 'webgl'
     plot_peakdiff(fig_peakdiff,signal,time,peaks)
     logging.info("peakdiff exported")
-    
+
     fig_waveform = figure(title='Consistency/Waveform plot', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]')
     fig_waveform.output_backend = 'webgl'
     plot_waveform(fig_waveform,signal,time,peaks,frame_rate)
     logging.info("waveform exported")
-    
+
     differences = np.diff(timearray)
     peak_amp = normalized_amplitude[peaks]
     fig_stat = figure(title='stat plot', x_axis_label='Transient Time difference[ms]', y_axis_label='Number of elements in Bin')
@@ -121,7 +121,7 @@ def plot_centered(fig, signal, time, peaks):
 
     # Update centered segments plot here
     segment_width = int(log_val)
-    
+
     for peak in peaks:
         start = max(1, peak - segment_width)
         end = min(len(time), peak + segment_width)
@@ -133,8 +133,8 @@ def plot_centered(fig, signal, time, peaks):
     #reset_output()
     output_file("centered_plot.html")
     show(fig)
-    
-    
+
+
 def plot_peakdiff(fig, signal, time, peaks):
     zoomval = 400
     log_val = np.exp(zoomval / 100)
@@ -142,14 +142,14 @@ def plot_peakdiff(fig, signal, time, peaks):
     # Update peakdiff segments plot here
     segment_width = int(log_val)
 
-    
+
     for i in range(len(peaks) - 2):
         start = peaks[i]  # Start index at the current peak
         end = peaks[i + 2]  # End index at the next peak
         segment = signal[start:end]
         peakdiff_x = time[start:end] - time[start]  # Adjust x-axis values relative to the start
         fig.line(peakdiff_x, segment)
-        fig.circle(time[peaks[i+1] - peaks[i]], signal[peaks[i+1]], size=10, fill_color='red') 
+        fig.circle(time[peaks[i+1] - peaks[i]], signal[peaks[i+1]], size=10, fill_color='red')
 
     data_center = round(np.mean(time[peaks[i+1] - peaks[i]]))
     fig.x_range.start = data_center - segment_width
@@ -157,7 +157,7 @@ def plot_peakdiff(fig, signal, time, peaks):
     #reset_output()
     output_file("peakdiff_plot.html")
     show(fig)
-    
+
 def plot_waveform(fig, signal, time, peaks,frame_rate):
     visible_start = 0
     visible_end = max(time)
@@ -187,19 +187,19 @@ def plot_waveform(fig, signal, time, peaks,frame_rate):
     #reset_output()
     output_file("waveform_plot.html")
     show(fig)
-    
+
 def plot_stat(fig, x_data, y_data):
     mean_x = np.mean(x_data)
     std_x = np.std(x_data)
-    
+
     stddeviations = 5
     max_dist= max(abs(mean_x-min(x_data)),abs(mean_x+max(x_data)))
     x_curve = np.linspace(mean_x-stddeviations*std_x, mean_x+stddeviations*std_x, 1000)
     y_curve = np.linspace(min(y_data), max(y_data), 1000)
-    
+
     # Calculate the unnormalized Gaussian values
     x_gaussian = np.exp(-0.5 * ((x_curve - mean_x) / std_x)**2) / (std_x * np.sqrt(2 * np.pi))
-    
+
     #x_gaussian = x_gaussian * x_normalization_factor  # Corrected line
     area_under_curve= np.trapz(x_gaussian, x_curve)
     #y_gaussian = np.exp(-0.5 * ((y_curve - mean_y) / std_y)**2) / (std_y * np.sqrt(2 * np.pi))
@@ -217,15 +217,15 @@ def plot_stat(fig, x_data, y_data):
     row_spacing = max(x_gaussian)/(num_elements_in_highest_bin)
     fig.y_range = Range1d(start=0, end=num_elements_in_highest_bin)
     fig.circle(x_data,np.zeros(len(x_data))+0.05, size=10, fill_color='red')
-    
+
     fig.extra_y_ranges = {"gaussian_range": Range1d(start=0, end=max(x_gaussian))}
     fig.add_layout(LinearAxis(y_range_name="gaussian_range", axis_label="Probability Density [a.u.]"), 'right')  # Add the right y-axis
     fig.line(x_curve, x_gaussian, y_range_name="gaussian_range",)
-    
+
     output_file("stat_plot.html")
     show(fig)
 
-    
+
 def find_maximum_around_peak(data, peak_location, search_range):
     """
     Find the maximum value within a specified search range around a given peak location.
@@ -301,5 +301,4 @@ def replace_negatives_with_neighbors(lst):
 
 if __name__ == '__main__':
     main()
-
 

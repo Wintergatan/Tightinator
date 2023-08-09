@@ -39,23 +39,21 @@
             margin-top: 20px;
             width: 50%; /* Adjust the width of the progress bar container */
             height: 20px;
-            border: 1px solid #ccc;
-            background-color: #f5f5f5;
-            display: none;
         }
 
         #progressBar {
-            height: 100%;
-            width: 0;
-            background-color: #007bff;
+            width: 100%;
+            height: 20px;
+            background-color: darkgrey;
+            display: none;
         }
+
     </style>
 </head>
 <body>
-    <h1>Processing your request...</h1>
 
+    <h1 id="loadingMessage">Processing your request...</h1>
     </br>
-
     <div id="spinner">
         <img id="spinnerImage" src="/static/assets/spinner.png" alt="Loading...">
     </div>
@@ -124,9 +122,70 @@
             const spinner = document.getElementById('spinner');
             const progressBarContainer = document.getElementById('progressBarContainer');
             spinner.style.display = 'block';
-            progressBarContainer.style.display = 'block';
+            progressBar.style.display = 'block';
             checkDownloadStatus(60);
         }, 5000);
+    </script>
+
+    <script>
+        const messages = [
+            "Processing your request...",
+            "Running peak detection...",
+            "Picking up all the marbles...",
+            "Angling the grinders...",
+            "Tuning vibraphone pipes...",
+            "Looking for lost marbles...",
+            "Giving Wilson a bath...",
+            "Breathing welding fumes...",
+            "Plockar upp alla kulor...",
+            "Justering av slipmaskin...",
+            "Stämmer vibrafonpipor...",
+            "Svetsar ihop metallstycken...",
+            "Optimerar melodispelaren...",
+            "Moving across international borders...",
+            "Planning the 2024 Wintergatan Community Meetup...",
+            "Scrapping the MMX...",
+            "Tuning the bass...",
+            "Dropping the bass...",
+            "Spinning up the flywheel...",
+            "Assembling metal pieces...",
+            "Optimizing music player...",
+            "Checking alignment...",
+            "Calibrating instruments...",
+            "Welding intricate designs...",
+            "Balancing melodies...",
+            "Polishing the final piece...",
+            "Harmonizing sounds...",
+            "Crafting musical marbles...",
+            "Adding finishing touches...",
+            "Fine-tuning harmonics...",
+            "Testing resonance...",
+            "Refining musical nuances...",
+            "Shaping melodies...",
+            "Sculpting rhythms...",
+            "Molding metal marvels...",
+            "Elevating artistic precision...",
+            "Hacking the Discord...",
+            "Changing cutting discs...",
+            "Grinding new tungstens...",
+            "Casting spells...",
+            "Pre-heating...",
+            "Getting swole..."
+        ];
+
+        const loadingMessageElement = document.getElementById('loadingMessage');
+        let currentIndex = 0;
+
+        function updateMessage() {
+            const randomIndex = Math.floor(Math.random() * messages.length);
+            loadingMessageElement.innerHTML = messages[randomIndex];
+        }
+
+        // Initial update
+        updateMessage();
+
+        // Update message every 5 seconds
+        setInterval(updateMessage, 5000);
     </script>
 </body>
 </html>

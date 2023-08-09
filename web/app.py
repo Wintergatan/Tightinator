@@ -45,8 +45,37 @@ def config(uuid, filename):
 def run(uuid):
     filename = str(request.form['filename'])
     output_filename = str(request.form['output_filename'])
-    threshold = float(request.form['threshold'])
-    rounding = int(request.form['rounding'])
+
+    threshold = str(request.form['threshold'])
+    roundness = str(request.form['roundness'])
+    sample_size = str(request.form['sample'])
+    rounding = str(request.form['rounding'])
+    channel = str(request.form['channelNumber'])
+    downsample_rate = str(request.form['downsampleRate'])
+    num_buckets = str(request.form['numBuckets'])
+    num_peaks = str(request.form['numPeaks'])
+
+    '''
+    debug_command = [
+        'python3',
+        'main.py',
+        '-f', "static/upload/{}/{}".format(uuid, filename),
+        '-o', "static/upload/{}/{}".format(uuid, output_filename),
+        '-t', threshold,
+        '-en', roundness,
+        '-l', sample_size,
+        '-r', rounding,
+        '-p', num_peaks,
+        '-b', num_buckets,
+    ]
+
+    if request.form['webMode']:
+        web_mode = [
+            '-x', str(request.form['xwide']),
+            '-y', str(request.form['yhigh'])
+            ]
+        debug_command = debug_command + web_mode
+    '''
 
     debug_command = [
         'python3',
@@ -55,7 +84,7 @@ def run(uuid):
         '-o', "static/upload/{}/{}".format(uuid, output_filename)
     ]
 
-    print("Debug Command:", " ".join(debug_command))
+    print("Running {}".format(debug_command))
 
     try:
         process = subprocess.Popen(debug_command, text=True)

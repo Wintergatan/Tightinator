@@ -154,20 +154,26 @@
             <!-- Advanced Options section -->
             <div id="advancedOptions" class="expanded" style="display: none;">
                 </br>
-                <label for="numBuckets">Number of Buckets:
-                    <input type="number" id="numBuckets" name="numBuckets" value="10">
-                </label>
-                <label for="downsamplingRate">Downsampling Rate:
-                    <input type="number" id="downsamplingRate" name="downsamplingRate" value="1">
-                </label>
                 <label for="channelNumber">Channel Number:
                     <input type="number" id="channelNumber" name="channelNumber" value="0">
                 </label>
+                <label for="downsampleRate">Downsampling Rate:
+                    <input type="number" id="downsampleRate" name="downsampleRate" value="8">
+                </label>
+                <label for="numBuckets">Number of Buckets:
+                    <input type="number" id="numBuckets" name="numBuckets" value="9">
+                </label>
                 <label for="numPeaks">Number of Peaks:
-                    <input type="number" id="numPeaks" name="numPeaks" value="5">
+                    <input type="number" id="numPeaks" name="numPeaks" value="3">
                 </label>
                 <label for="webMode">Web Mode:
-                    <input type="checkbox" id="webMode" name="webMode">
+                    <input type="checkbox" id="webMode" name="webMode" checked>
+                </label>
+                <label for="width">Width:
+                    <input type="number" id="xwide" name="xwide" value="5">
+                </label>
+                <label for="height">Height:
+                    <input type="number" id="yhigh" name="yhigh" value="5">
                 </label>
             </div>
 
@@ -192,6 +198,10 @@
             maybe height/width
             video mode on
     -->
+    <script>
+        document.getElementById("xwide").value = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0)
+        document.getElementById("yhigh").value = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0)
+    </script>
 
     <script>
         function toggleAdvancedOptions() {

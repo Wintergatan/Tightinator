@@ -103,25 +103,6 @@ def running(uuid, output_filename):
 
     return redirect(url_for('result', uuid=uuid, output_filename=output_filename))
 
-'''
-@app.route('/running/<uuid>/<output_filename>')
-def running(uuid, output_filename):
-
-    csv_path = os.path.join(app.root_path, 'static', 'upload', uuid, output_filename)
-
-    if os.path.exists(csv_path):
-        return redirect(url_for('result', uuid=uuid, output_filename=output_filename))  # Redirect to the "Process Complete" page
-    else:
-        return render_template('running.html', uuid=uuid, output_filename=output_filename)   # Continue rendering the "Running..." page
-
-    if process is None:
-        return render_template('result.html', uuid=uuid, output="Process not found")
-
-    if process.poll() is None:
-        return render_template('running.html', uuid=uuid, output_filename=output_filename, process_output=process_output)
-    else:
-        return render_template('result.html', uuid=uuid, output_filename=output_filename, output=process_output)
-'''
 def wait_for_process(uuid, process):
     process.wait()
 

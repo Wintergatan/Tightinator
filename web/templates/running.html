@@ -79,15 +79,12 @@
             const downloadLink = document.getElementById('downloadLink');
             const downloadButton = document.getElementById('downloadButton');
 
-            fetch(`/download/${uuid}`)
+            fetch(`/download/${uuid}/${output_filename}`)
                 .then(response => {
                     if (response.ok) {
                         // File is ready, show download link
-                        spinner.style.display = 'none';
-                        progressBarContainer.style.display = 'none';
-                        message.textContent = 'Process completed successfully!';
-                        downloadLink.style.display = 'block';
-                        downloadButton.href = `/download/${uuid}`;
+                        const redirectUrl = `/result/${uuid}/${output_filename}`;
+                        window.location.href = redirectUrl;
                     } else if (triesLeft > 0) {
                         // Update progress bar
                         const progressPercentage = ((60 - triesLeft) / 60) * 100;
@@ -114,7 +111,7 @@
                         // Timeout reached, show error message
                         spinner.style.display = 'none';
                         progressBarContainer.style.display = 'none';
-                        // Redirect to the results page with the failure message
+                        // Redirect to the result page with the failure message
                         const redirectUrl = `/result/${uuid}/${output_filename}?failure=true`;
                         window.location.href = redirectUrl;
                         message.textContent = 'Process timed out. Please try again later.';
@@ -128,7 +125,7 @@
             const progressBarContainer = document.getElementById('progressBarContainer');
             spinner.style.display = 'block';
             progressBarContainer.style.display = 'block';
-            checkDownloadStatus(2);
+            checkDownloadStatus(60);
         }, 5000);
     </script>
 </body>

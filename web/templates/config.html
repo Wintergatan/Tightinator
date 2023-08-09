@@ -48,6 +48,21 @@
             cursor: pointer;
         }
 
+        #homeButton {
+            margin-top: 10px;
+        }
+
+        #homeLink {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
     </style>
 </head>
 <body>
@@ -86,6 +101,9 @@
             <input type="hidden" name="uuid" value="{{ uuid }}">
             <input type="hidden" name="filename" value="{{ filename }}">
             <button type="submit">Generate CSV</button>
+            <div id="homeButton">
+                <a id="homeLink" href="{{ url_for('index') }}">Upload another file</a>
+            </div>
         </form>
     </div>
 
@@ -95,6 +113,7 @@
             Channel selector
             Downsampling rate
             Number of buckets
+            -n number of peaks
             web mode off
             maybe height/width
             video mode on

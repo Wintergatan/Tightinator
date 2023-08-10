@@ -194,15 +194,18 @@ def plot_centered(fig, signal, time, peaks):
     segment_width = int(log_val)
     cutoff = 0
     maxheight = 1
+    xs, ys = [], []
     for peak in peaks:
         start = max(1, peak - segment_width)
         end = min(len(time), peak + segment_width)
         segment = signal[start:end]
         centered_x = time[start:end] - time[peak]
-        fig.line(centered_x[segment >cutoff], (segment[segment>cutoff])/signal[peak], alpha=0.5, legend_label='centered Waveform')
+        xs.append( centered_x[segment >cutoff])
+        ys.append((segment[segment>cutoff])/signal[peak])
         newmax = max((segment[segment>cutoff])/signal[peak])
         if(newmax > maxheight):
             maxheight = newmax
+    fig.multi_line(xs, ys, alpha=0.5, legend_label='centered Waveform')
     fig.circle(0, 1, size=10, fill_color='red', legend_label='detected peaks')
     fig.x_range.start = min(centered_x[segment >cutoff])
     fig.x_range.end = max(centered_x[segment >cutoff])
@@ -215,14 +218,18 @@ def plot_centered(fig, signal, time, peaks):
 def plot_peakdiff(fig, signal, time, peaks):
     cutoff = 0.01
     diff_times = []
+    xs, ys = [],[]
     for i in range(len(peaks) - 2):
         start = peaks[i]  # Start index at the current peak
         end = peaks[i + 2]  # End index at the next peak
         segment = signal[start:end]
         peakdiff_x = time[start:end] - time[start]  # Adjust x-axis values relative to the start
         diff_times.append(time[peaks[i+1] - peaks[i]])
-        fig.line(peakdiff_x[segment >cutoff], segment[segment >cutoff], alpha=0.5, legend_label='Peak Waveform')
+        xs.append(peakdiff_x[segment >cutoff])
+        ys.append(segment[segment >cutoff])
         fig.circle(diff_times[i], signal[peaks[i+1]], size=10, fill_color='red', legend_label='detected Peak') 
+    
+    fig.multi_line(xs, ys, alpha=0.5, legend_label='Peak Waveform')
     zoomfact = 5
     data_center = round(np.mean(diff_times))
     segment_width = zoomfact*round(np.std(diff_times))
@@ -404,9 +411,7 @@ def moving_average(data, window_size):
 
 def replace_negatives_with_neighbors(lst):
     new_lst = lst.copy()  # Create a copy of the original list
-    for i in range(len(lst)):
-        if lst[i] < 0:
-            new_lst[i] = np.abs(lst[i])
+    new_lst = np.abs(lst)
     return new_lst
 
 

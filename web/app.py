@@ -13,11 +13,6 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 processes = {}
 
-def generate_csv(input_wav, output_csv, threshold):
-    # Run your Python script here to generate the CSV file based on the uploaded WAV file
-    # Example: Call main.py with filled arguments
-    os.system(f"python3 main.py -f {input_wav} -o {output_csv} -t {threshold}")
-
 @app.route('/', methods=['GET', 'POST'])
 def index():
     if request.method == 'POST':
@@ -55,12 +50,13 @@ def run(uuid):
     num_buckets = str(request.form['numBuckets'])
     num_peaks = str(request.form['numPeaks'])
 
-    '''
     debug_command = [
         'python3',
         'main.py',
-        '-f', "static/upload/{}/{}".format(uuid, filename),
-        '-o', "static/upload/{}/{}".format(uuid, output_filename),
+        '--work-dir', "static/upload/{}/".format(uuid),
+        '-f', filename,
+        '-o', output_filename,
+        '-d', downsample_rate,
         '-t', threshold,
         '-en', roundness,
         '-l', sample_size,
@@ -75,14 +71,15 @@ def run(uuid):
             '-y', str(request.form['yhigh'])
             ]
         debug_command = debug_command + web_mode
-    '''
 
+    '''
     debug_command = [
         'python3',
         'main.py',
         '-f', "static/upload/{}/{}".format(uuid, filename),
         '-o', "static/upload/{}/{}".format(uuid, output_filename)
     ]
+    '''
 
     print("Running {}".format(debug_command))
 

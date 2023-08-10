@@ -155,7 +155,7 @@ def main():
     #output_filename = filename[:-4]+".csv"
     logging.info("Saving output values to {}".format(output_filename))
     np_fmt = "%1.{}f".format(float_prec)
-    np.savetxt(output_filename, combined_array, delimiter=",", header="Times[ms],Differences[ms],stdevandmore[ms]", fmt=np_fmt, comments="")
+    np.savetxt(output_filename, combined_array, delimiter=",", header="Times[ms],BestTimes[ms],stdevandmore[ms]", fmt=np_fmt, comments="")
 
 
 
@@ -264,7 +264,7 @@ def plot_waveform(fig, signal, time, peaks,peaktimes,frame_rate,best_series_time
             fill_color.append('darkred')  # Red for negative acceleration
         else:
             fill_color.append('darkorange')  # Orange for positive acceleration
-    fig.extra_y_ranges = {"peak_diff_range": Range1d(diff_mean-zoom_factor*diff_stdev, diff_mean+zoom_factor*diff_stdev)}
+    fig.extra_y_ranges = {"peak_diff_range": Range1d(max(0,diff_mean-zoom_factor*diff_stdev), diff_mean+zoom_factor*diff_stdev)}
     fig.add_layout(LinearAxis(y_range_name="peak_diff_range", axis_label="BPM [Hz]"), 'right')  # Add the right y-axis
     fig.vbar(x=peak_middles, top=peak_bpm, width=(peak_differences/1000)*0.9, y_range_name="peak_diff_range", color = 'green', fill_alpha=1, legend_label='BPM')
     #fig.line(x=peak_middles,y=(norm_accel_best*0.10)+0.5, line_color="darkgoldenrod", legend_label= 'acceleration of BPM', line_width=3)
@@ -331,8 +331,15 @@ def plot_stat(fig, peak_times, y_data,nbins):
     fig.circle(x_data,(peakamps / np.max(np.abs(peakamps)))*(num_elements_in_highest_bin-1), size=10, fill_color='red', legend_label='Peak Transient Time')
 
     fig.xaxis.ticker.num_minor_ticks = 9
-    xshift = 3.2
-    width=fig.width
+    xshift = 0
+    
+    text_annotation1 = Label(x=(mean_x-(stddeviations-xshift)*std_x), y=(num_elements_in_highest_bin)*0.94, text="standard deviation = "+f"{std_x:.2f}"+" ms", text_font_size="20pt")
+    text_annotation2 = Label(x=(mean_x-(stddeviations-xshift)*std_x), y=(num_elements_in_highest_bin)*0.88, text="mean = "+f"{mean_x:.2f}"+" ms", text_font_size="20pt")
+    fig.add_layout(text_annotation1)
+    fig.add_layout(text_annotation2)
+    
+    fig.x_range.start = mean_x-(stddeviations)*std_x
+    fig.x_range.end = mean_x+(stddeviations)*std_x
     
     
     

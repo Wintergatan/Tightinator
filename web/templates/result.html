@@ -24,28 +24,25 @@
             margin-bottom: 20px;
         }
 
-        #spinnerContainer {
-            position: relative;
-            width: 100%;
-            height: 800px; /* Set the same height as the iframe */
-        }
-
-        #spinner {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            display: flex;
-            flex-direction: column; /* Align items vertically */
-            justify-content: center;
-            align-items: center;
-        }
-
         #spinnerImage {
             width: 400px; /* Adjust the spinner image size as needed */
             height: 225px;
             animation: spin 2s linear infinite;
+        }
+
+        #spinnerContainer {
+            position: relative;
+            width: 100%;
+            height: 100vh; /* Set the height of the container to match the viewport */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #spinner {
+            display: block;
+            text-align: center;
         }
 
         @keyframes spin {
@@ -76,7 +73,6 @@
         #downloadLink {
             display: inline-block;
             text-align: center;
-            margin-top: 20px;
         }
 
         #homeButton {
@@ -94,6 +90,16 @@
             border-radius: 20px;
             cursor: pointer;
             text-decoration: none;
+        }
+
+        #summaryObject {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto; /* Center horizontally */
+            overflow: scroll; /* Enable vertical and horizontal scrolling */
         }
     </style>
 
@@ -123,29 +129,54 @@
                 <h2>Loading plots...</h2>
                 <img id="spinnerImage" src="/static/assets/spinner.png" alt="Loading...">
             </div>
-            <iframe id="summaryFrame" src="/static/upload/summary.html" width="100%" height="100%"></iframe>
+            <object id="summaryObject" type="text/html"></object>
         </div>
     {% endif %}
 
+
     <script>
+        // Get the UUID from the query parameter
         const uuid = "{{ uuid }}";
         const output_filename = "{{ output_filename }}";
-        const spinner = document.getElementById('spinner');
-        const message = document.getElementById('message');
-        const downloadLink = document.getElementById('downloadLink');
-        const downloadButton = document.getElementById('downloadButton');
-        const summaryFrame = document.getElementById('summaryFrame');
 
-        console.log(uuid)
-        console.log(output_filename)
+        function getSummary() {
+            const spinner = document.getElementById('spinner');
+            const summaryObject = document.getElementById('summaryObject');
 
+            function fetchSummary() {
+                fetch(`/static/upload/${uuid}/summary.html`)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Response not OK');
+                        }
+                        return response.text();
+                    })
+                    .then(html => {
+                        spinner.style.display = 'none';
 
-        // Show the summary frame and hide the spinner when it's loaded
-        summaryFrame.addEventListener('load', () => {
-            spinner.style.display = 'none';
-            summaryFrame.style.display = 'inline-block';
+                        const blob = new Blob([html], { type: 'text/html' });
+                        const blobUrl = URL.createObjectURL(blob);
+
+                        summaryObject.style.display = 'block';
+                        summaryObject.data = blobUrl;
+                    })
+                    .catch(() => {
+                        setTimeout(fetchSummary, 1000);
+                    });
+            }
+
+            function startFetching() {
+                fetchSummary();
+            }
+
+            startFetching();
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            getSummary();
         });
     </script>
 
 </body>
 </html>
+

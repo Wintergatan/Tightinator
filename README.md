@@ -15,8 +15,8 @@ The main.py file in the top-level of this repository is the best file for use lo
 
 main.py will output help:
 ```
-./main.py -h
-usage: main.py [-h] [-f FILENAME] [-o OUTPUT_FILENAME] [-t THRESH] [-c NUM_CHANNELS] [-s OFF_CHANNEL] [-e ENVELOPE_SMOOTHNESS] [-x EXCLUSION] [-p FLOAT_PREC] [-v]
+usage: main.py [-h] [-f FILENAME] [-o OUTPUT_FILENAME] [-t THRESH] [-c CHANNEL] [-en ENVELOPE_SMOOTHNESS] [-ex EXCLUSION] [-p FLOAT_PREC] [-n NPEAKS] [-b NBINS]
+               [-l LEN_SERIES] [-w] [-x X_WIDE] [-y Y_HIGH] [-v]
 
 Map transient times
 
@@ -28,17 +28,27 @@ options:
                         Filename to write output values to
   -t THRESH, --threshold THRESH
                         DEFAULT=0.25 Peak detection threshold, lower is rougher
-  -c NUM_CHANNELS, --number-channels NUM_CHANNELS
-                        DEFAULT=3 Number of channels, 2=MONO, 3=STEREO, etc
-  -s OFF_CHANNEL, --channel-offset OFF_CHANNEL
-                        DEFAULT=2 Channel offset, channel to analyze.
-  -e ENVELOPE_SMOOTHNESS, --envelope-smoothness ENVELOPE_SMOOTHNESS
+  -c CHANNEL, --channel CHANNEL
+                        DEFAULT=1 Channel to get the Waveform from
+  -en ENVELOPE_SMOOTHNESS, --envelope-smoothness ENVELOPE_SMOOTHNESS
                         DEFAULT=100 Amount of rounding around the envelope
-  -x EXCLUSION, --exclusion EXCLUSION
+  -ex EXCLUSION, --exclusion EXCLUSION
                         DEFAULT=30 Exclusion threshold
   -p FLOAT_PREC, --precision FLOAT_PREC
                         DEFAULT=6 Number of decimal places to round measurements to. Ex: -p 6 = 261.51927438
+  -n NPEAKS, --number-peaks NPEAKS
+                        DEFAULT=3 Number of valid Peaks from which the leftmost is selected for better lining up between transients.
+  -b NBINS, --bins NBINS
+                        DEFAULT=0 Number of Bins used for the gaussian curve.
+  -l LEN_SERIES, --length LEN_SERIES
+                        DEFAULT=100 The length of the series of most consistent Beats.
+  -w, --web             Get some width/height values from browser objects for graphing. Defaults false.
+  -x X_WIDE, --x-width X_WIDE
+                        DEFAULT=2000 Fixed width for graphs.
+  -y Y_HIGH, --plot-height Y_HIGH
+                        DEFAULT=600 Fixed height for single plot.
   -v, --verbose         Set debug logging
+
 ```
 
 ### Prerequisites

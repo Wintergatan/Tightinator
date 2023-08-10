@@ -114,9 +114,7 @@ def main():
     logging.info("Found {} rough peaks, refining...".format(len(peaks_roughly)))
     time = np.arange(0, len(normalized_amplitude))/timefactor
     peaks = []
-
     peaktimes = []
-
     for peak in peaks_roughly:
         search_range = 500
         max_value, max_index = find_maximum_around_peak(np.abs(normalized_amplitude), peak, search_range,npeaks)
@@ -301,9 +299,7 @@ def plot_waveform(fig, signal, time, peaks,peaktimes,frame_rate,best_series_time
     fig.xaxis.ticker.num_minor_ticks = 9
     return fig
 
-    
 def plot_stat(fig, peak_times, y_data,nbins):
-
 
     x_data = np.diff(peak_times)
     mean_x = np.mean(x_data)
@@ -350,9 +346,6 @@ def plot_stat(fig, peak_times, y_data,nbins):
 
     fig.x_range.start = mean_x-(stddeviations)*std_x
     fig.x_range.end = mean_x+(stddeviations)*std_x
-
-
-
 
     return fig
 

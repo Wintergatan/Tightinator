@@ -230,7 +230,7 @@ def plot_peakdiff(fig, signal, time, peaks):
         peakdiff_x = time[start:end] - time[start]  # Adjust x-axis values relative to the start
         diff_times.append(time[peaks[i+1] - peaks[i]])
         fig.line(peakdiff_x[segment >cutoff], segment[segment >cutoff], alpha=0.5, legend_label='Peak Waveform')
-        fig.circle(diff_times[i], signal[peaks[i+1]], size=10, fill_color='red', legend_label='detected Peak') 
+        fig.circle(diff_times[i], signal[peaks[i+1]], size=10, fill_color='red', legend_label='detected Peak')
     zoomfact = 5
     data_center = round(np.mean(diff_times))
     segment_width = zoomfact*round(np.std(diff_times))
@@ -272,21 +272,23 @@ def plot_waveform(fig, signal, time, peaks,peaktimes,frame_rate,best_series_time
             fill_color.append('darkred')  # Red for negative acceleration
         else:
             fill_color.append('darkorange')  # Orange for positive acceleration
-    fig.extra_y_ranges = {"peak_diff_range": Range1d(diff_mean-zoom_factor*diff_stdev, diff_mean+zoom_factor*diff_stdev)}
+    fig.extra_y_ranges = {"peak_diff_range": Range1d(max(0,diff_mean-zoom_factor*diff_stdev), diff_mean+zoom_factor*diff_stdev)}
     fig.add_layout(LinearAxis(y_range_name="peak_diff_range", axis_label="BPM [Hz]"), 'right')  # Add the right y-axis
     fig.vbar(x=peak_middles, top=peak_bpm, width=(peak_differences/1000)*0.9, y_range_name="peak_diff_range", color = 'green', fill_alpha=1, legend_label='BPM')
     #fig.line(x=peak_middles,y=(norm_accel_best*0.10)+0.5, line_color="darkgoldenrod", legend_label= 'acceleration of BPM', line_width=3)
     #fig.line(x=[0,len(time)],y=[0.5,0.5], line_color="black", line_dash="dotted")
-    fig.vbar(x=peak_middles, bottom=peak_bpm + (np.abs(accel)*-1),top=peak_bpm , width=(peak_differences/1000)*0.5, y_range_name="peak_diff_range", color = fill_color, fill_alpha=1, legend_label='BPM Acceleration')    
+    #fig.vbar(x=peak_middles, bottom=peak_bpm + (np.abs(accel)*-1),top=peak_bpm , width=(peak_differences/1000)*0.5, y_range_name="peak_diff_range", color = fill_color, fill_alpha=1, legend_label='BPM Acceleration')
     fig.line(time_cut, signal_cut, legend_label='Waveform')
     fig.circle(time_xax[peaks], signal[peaks], legend_label='Detected Peaks', color = 'red')
+    accel_start = max(0,diff_mean-zoom_factor*diff_stdev)
+    fig.vbar(x=peak_middles, bottom=accel_start,top=accel_start + (np.abs(accel)) , width=(peak_differences/1000)*0.5, y_range_name="peak_diff_range", color = fill_color, fill_alpha=1, legend_label='BPM Acceleration')
     x_coordinate = best_series_times[0]/1000
 
     fig.line(x=[x_coordinate,x_coordinate], y=[0,1], line_width=2, line_dash="dashed", line_color="black", legend_label= 'Segment of most consistent Beats')
     x_coordinate = max(best_series_times)/1000
 
     fig.line(x=[x_coordinate,x_coordinate], y=[0,1], line_width=2, line_dash="dashed", line_color="black")
-    
+
     #fig.extra_y_ranges = {"peak_diff_range": Range1d(start=(1-resolution)*scaling_factor, end=(1+resolution)*scaling_factor)}
 
 
@@ -301,20 +303,20 @@ def plot_waveform(fig, signal, time, peaks,peaktimes,frame_rate,best_series_time
 
     
 def plot_stat(fig, peak_times, y_data,nbins):
-    
-    
+
+
     x_data = np.diff(peak_times)
     mean_x = np.mean(x_data)
     std_x = np.std(x_data)
-    
+
     stddeviations = 5
     max_dist= max(abs(mean_x-min(x_data)),abs(mean_x+max(x_data)))
     x_curve = np.linspace(mean_x-stddeviations*std_x, mean_x+stddeviations*std_x, 1000)
     y_curve = np.linspace(min(y_data)-50, max(y_data)+50, 1000)
-    
+
     # Calculate the unnormalized Gaussian values
     x_gaussian = np.exp(-0.5 * ((x_curve - mean_x) / std_x)**2) / (std_x * np.sqrt(2 * np.pi))
-    
+
     #x_gaussian = x_gaussian * x_normalization_factor  # Corrected line
     area_under_curve= np.trapz(x_gaussian, x_curve)
     #y_gaussian = np.exp(-0.5 * ((y_curve - mean_y) / std_y)**2) / (std_y * np.sqrt(2 * np.pi))
@@ -332,19 +334,26 @@ def plot_stat(fig, peak_times, y_data,nbins):
     row_spacing = max(x_gaussian)/(num_elements_in_highest_bin)
     fig.y_range = Range1d(start=0, end=num_elements_in_highest_bin)
     peakamps =y_data[1:]
-    
+
     fig.extra_y_ranges = {"gaussian_range": Range1d(start=0, end=max(x_gaussian))}
     fig.add_layout(LinearAxis(y_range_name="gaussian_range", axis_label="Probability Density [a.u.]"), 'right')  # Add the right y-axis
     fig.line(x_curve, x_gaussian, y_range_name="gaussian_range", color= 'red', line_width = 2.5, legend_label='Gaussian distribution')
     fig.circle(x_data,(peakamps / np.max(np.abs(peakamps)))*(num_elements_in_highest_bin-1), size=10, fill_color='red', legend_label='Peak Transient Time')
 
     fig.xaxis.ticker.num_minor_ticks = 9
-    xshift = 3.2
-    width=fig.width
-    
-    
-    
-    
+    xshift = 0
+
+    text_annotation1 = Label(x=(mean_x-(stddeviations-xshift)*std_x), y=(num_elements_in_highest_bin)*0.94, text="standard deviation = "+f"{std_x:.2f}"+" ms", text_font_size="20pt")
+    text_annotation2 = Label(x=(mean_x-(stddeviations-xshift)*std_x), y=(num_elements_in_highest_bin)*0.88, text="mean = "+f"{mean_x:.2f}"+" ms", text_font_size="20pt")
+    fig.add_layout(text_annotation1)
+    fig.add_layout(text_annotation2)
+
+    fig.x_range.start = mean_x-(stddeviations)*std_x
+    fig.x_range.end = mean_x+(stddeviations)*std_x
+
+
+
+
     return fig
 
     

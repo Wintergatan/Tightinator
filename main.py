@@ -2,7 +2,7 @@
 
 import numpy as np
 from bokeh.plotting import figure, show, output_file
-from bokeh.models import LinearAxis, Range1d
+from bokeh.models import LinearAxis, Range1d, Label
 from bokeh.layouts import row, column
 from scipy import integrate
 from scipy.io import wavfile
@@ -34,7 +34,7 @@ parser.add_argument('-en', '--envelope-smoothness', dest='envelope_smoothness', 
 parser.add_argument('-ex', '--exclusion', dest='exclusion', default='30', type=int, action='store', help='DEFAULT=30 Exclusion threshold')
 parser.add_argument('-p', '--precision', dest='float_prec', default='6', type=int, action='store', help='DEFAULT=6 Number of decimal places to round measurements to. Ex: -p 6 = 261.51927438')
 parser.add_argument('-n', '--number-peaks', dest='npeaks', default='3', type=int, action='store', help='DEFAULT=3 Number of valid Peaks from which the leftmost is selected for better lining up between transients.')
-parser.add_argument('-b', '--bins', dest='nbins', default='9', type=int, action='store', help='DEFAULT=9 Number of Bins used for the gaussian curve.')
+parser.add_argument('-b', '--bins', dest='nbins', default='0', type=int, action='store', help='DEFAULT=0 Number of Bins used for the gaussian curve.')
 parser.add_argument('-l', '--length', dest='len_series', default='100', type=int, action='store', help='DEFAULT=100 The length of the series of most consistent Beats.')
 parser.add_argument('-w', '--web', dest='web_mode', default=False, action='store_true', help='Get some width/height values from browser objects for graphing. Defaults false.')
 parser.add_argument('-x', '--x-width', dest='x_wide', default='2000', type=int, action='store', help='DEFAULT=2000 Fixed width for graphs.')
@@ -68,7 +68,9 @@ def main():
     web_mode = args.web_mode
     full_width = args.x_wide
     plot_height = args.y_high
-
+    
+    if(nbins == 0):
+        nbins = int(1 + (3.322 * np.log(len_series)))
     # If output_filename argument not set use the uploaded filename + .csv
     if not args.output_filename:
         output_filename = filename[:-4]+".csv"
@@ -79,8 +81,15 @@ def main():
     #psuedo do webmode
 
     # Open wav file
+
     frame_rate, data = wavfile.read(filename)
-    amplitude_data = data[:,channel-1] # First channel has to be 1, only programmers know things start at 0
+    num_channels = data.shape[1] if len(data.shape) > 1 else 1
+    if(channel > num_channels):
+        channel = num_channels-1
+    if(num_channels > 1):
+        amplitude_data = data[:,channel-1] # First channel has to be 1, only programmers know things start at 0
+    else:
+        amplitude_data = data
     downsamplerate = 8
     amplitude_data = amplitude_data[::downsamplerate]
     timefactor = (frame_rate/downsamplerate)/1000
@@ -111,7 +120,7 @@ def main():
             peaks.append(max_index)
             peaktimes.append(time[max_index])
     if(len(peaks) < len_series):
-        len_series = peaks 
+        len_series = len(peaks)
     #print(peaks)
     #print(peaktimes)
     peaks = np.array(peaks)
@@ -129,7 +138,7 @@ def main():
 
     diffs = differences[:-1]
     diff_std = []
-    for i in range(len(diffs)-len_series):
+    for i in range(len(diffs)-(len_series-2)):
         diff_std.append(np.std(diffs[i:i+len_series]))
     start_of_best_series=np.argmin(diff_std)
     
@@ -156,11 +165,11 @@ def main():
     center_fig = plot_centered(fig_center,signal,time, best_peaks)
     logging.info("center_plot figure created")
     
-    
-    fig_peakdiff = figure(title='Tightness plot - most consistent Beats', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]', width=full_width, height=plot_height)
-    fig_peakdiff.output_backend = 'webgl'
-    peakdiff_fig = plot_peakdiff(fig_peakdiff,signal,time,best_peaks)
-    logging.info("peakdiff figure created")
+ 
+#    fig_peakdiff = figure(title='Tightness plot - most consistent Beats', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]', width=full_width, height=plot_height)
+#    fig_peakdiff.output_backend = 'webgl'
+#    peakdiff_fig = plot_peakdiff(fig_peakdiff,signal,time,best_peaks)
+#    logging.info("peakdiff figure created")
     
     fig_waveform = figure(title='Consistency/Waveform plot', x_axis_label='Time [s]', y_axis_label='Amplitude [a.u.]', width=full_width, height=plot_height)
     fig_waveform.output_backend = 'webgl'
@@ -172,7 +181,7 @@ def main():
     stat_fig = plot_stat(fig_stat,best_series_times,best_series_amps,nbins)
     logging.info("stat figure created")
     
-    layout = column(waveform_fig, peakdiff_fig, row(fig_center,stat_fig))
+    layout = column(waveform_fig, row(fig_center, stat_fig))
     output_file("summary.html", title="Summary Page")
     show(layout)
 
@@ -233,7 +242,6 @@ def plot_waveform(fig, signal, time, peaks,peaktimes,frame_rate,best_series_time
     visible_start = 0
     visible_end = max(time_xax)
     visible_indices = np.where((time_xax >= visible_start) & (time_xax <= visible_end))
-    fig.line(time_cut, signal_cut, legend_label='Waveform')
     fig.y_range = Range1d(start=0, end=1)
     peak_differences = np.diff(peaktimes)
     peak_differences_best = np.diff(best_series_times)
@@ -250,11 +258,19 @@ def plot_waveform(fig, signal, time, peaks,peaktimes,frame_rate,best_series_time
     accel_best = np.gradient(peak_bpm_best)
     norm_accel_best = accel/max(accel_best)
     zoom_factor = 10
+    fill_color = []
+    for acceleration in accel:
+        if acceleration < 0:
+            fill_color.append('darkred')  # Red for negative acceleration
+        else:
+            fill_color.append('darkorange')  # Orange for positive acceleration
     fig.extra_y_ranges = {"peak_diff_range": Range1d(diff_mean-zoom_factor*diff_stdev, diff_mean+zoom_factor*diff_stdev)}
     fig.add_layout(LinearAxis(y_range_name="peak_diff_range", axis_label="BPM [Hz]"), 'right')  # Add the right y-axis
-    fig.vbar(x=peak_middles, top=peak_bpm, width=1/peak_bpm, y_range_name="peak_diff_range", color = 'green', fill_alpha=0.75, legend_label='BPM')
-    fig.line(x=peak_middles,y=(norm_accel_best*0.10)+0.5, line_color="darkgoldenrod", legend_label= 'acceleration of BPM', line_width=3)
-    fig.line(x=[0,len(time)],y=[0.5,0.5], line_color="black", line_dash="dotted")
+    fig.vbar(x=peak_middles, top=peak_bpm, width=(peak_differences/1000)*0.9, y_range_name="peak_diff_range", color = 'green', fill_alpha=1, legend_label='BPM')
+    #fig.line(x=peak_middles,y=(norm_accel_best*0.10)+0.5, line_color="darkgoldenrod", legend_label= 'acceleration of BPM', line_width=3)
+    #fig.line(x=[0,len(time)],y=[0.5,0.5], line_color="black", line_dash="dotted")
+    fig.vbar(x=peak_middles, bottom=peak_bpm + (np.abs(accel)*-1),top=peak_bpm , width=(peak_differences/1000)*0.5, y_range_name="peak_diff_range", color = fill_color, fill_alpha=1, legend_label='BPM Acceleration')    
+    fig.line(time_cut, signal_cut, legend_label='Waveform')
     fig.circle(time_xax[peaks], signal[peaks], legend_label='Detected Peaks', color = 'red')
     x_coordinate = best_series_times[0]/1000
 
@@ -315,6 +331,11 @@ def plot_stat(fig, peak_times, y_data,nbins):
     fig.circle(x_data,(peakamps / np.max(np.abs(peakamps)))*(num_elements_in_highest_bin-1), size=10, fill_color='red', legend_label='Peak Transient Time')
 
     fig.xaxis.ticker.num_minor_ticks = 9
+    xshift = 3.2
+    width=fig.width
+    
+    
+    
     
     return fig
 

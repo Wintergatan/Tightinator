@@ -331,8 +331,19 @@ def plot_stat(fig, peak_times, y_data,nbins):
     fig.circle(x_data,(peakamps / np.max(np.abs(peakamps)))*(num_elements_in_highest_bin-1), size=10, fill_color='red', legend_label='Peak Transient Time')
 
     fig.xaxis.ticker.num_minor_ticks = 9
-    xshift = 3.2
-    width=fig.width
+    xshift = 0
+    
+    text_annotation1 = Label(x=(mean_x-(stddeviations-xshift)*std_x), y=(num_elements_in_highest_bin)*0.94, text="standard deviation = "+f"{std_x:.2f}"+" ms", text_font_size="20pt")
+    text_annotation2 = Label(x=(mean_x-(stddeviations-xshift)*std_x), y=(num_elements_in_highest_bin)*0.88, text="mean = "+f"{mean_x:.2f}"+" ms", text_font_size="20pt")
+    fig.add_layout(text_annotation1)
+    fig.add_layout(text_annotation2)
+    
+    fig.x_range.start = mean_x-(stddeviations)*std_x
+    fig.x_range.end = mean_x+(stddeviations)*std_x
+    #x_coordinate = mean_x -std_x
+    #fig.line(x=[x_coordinate,x_coordinate], y=[0,num_elements_in_highest_bin], line_width=2, line_dash="dashed", line_color="black", legend_label= 'standard deviation = '+str(std_x))
+    #x_coordinate = mean_x +std_x
+    #fig.line(x=[x_coordinate,x_coordinate], y=[0,num_elements_in_highest_bin], line_width=2, line_dash="dashed", line_color="black")
     
     
     

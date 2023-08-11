@@ -166,6 +166,7 @@ def main():
     stdev[5] = len(peaks)
     stdev[7] = threshold
     best_series_amps = signal[best_peaks]
+    best_diffs_csv = np.append(best_diffs_csv,0)
     combined_array = np.column_stack((timearray,differences,best_series_times_csv,best_diffs_csv,stdev))
     #output_filename = filename[:-4]+".csv"
     logging.info("Saving output values to {}".format(output_filename))

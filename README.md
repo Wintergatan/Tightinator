@@ -53,8 +53,12 @@ options:
 
 ### Prerequisites
 
-Currently no automated way of installing requirements is available. Check the `import` statements in the head of app/main.py
+This project is written in Python 3, and uses pip to manage dependencies.
 
+To install these libraries, run the following command:
+```bash
+pip install -r requirements.txt
+```
 
 ## Contributing
 

@@ -33,6 +33,7 @@ def config(uuid, filename):
     # Call generate_csv here after the user is redirected to the config endpoint
     #generate_csv(f'static/upload/{uuid}/{uuid}.wav', output_csv, threshold)
     output_filename = filename[:-4]+".csv"
+    output_filename = output_filename.replace(" ", "_")
 
     return render_template('config.html', uuid=uuid, filename=filename, output_filename=output_filename)
 
@@ -63,6 +64,7 @@ def run(uuid):
         '-r', rounding,
         '-p', num_peaks,
         '-b', num_buckets,
+        '-w',
         '-v'
     ]
 

@@ -1,7 +1,8 @@
 FROM python:latest
 
 # Install dependencies
-RUN pip3 install bokeh \
+RUN pip3 install \
+	bokeh \
 	numpy \
 	argparse \
 	scipy \
@@ -13,7 +14,7 @@ COPY main.py /opt/web/main.py
 
 # We'll run everything under a regular user acct, not root.
 RUN adduser wilson --home /opt --disabled-password
-RUN chown wilson:wilson /opt/* -R
+RUN chown wilson:wilson /opt -R
 USER wilson
 
 # Start up the app!

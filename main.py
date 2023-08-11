@@ -69,7 +69,6 @@ def main():
     nbins = args.nbins
     npeaks = args.npeaks
     len_series = args.len_series
-    web_mode = args.web_mode
     full_width = args.x_wide
     plot_height = args.y_high
     

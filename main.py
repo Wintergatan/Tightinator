@@ -166,8 +166,7 @@ def main():
     stdev[5] = len(peaks)
     stdev[7] = threshold
     best_series_amps = signal[best_peaks]
-    best_diffs_csv = np.append(best_diffs_csv,0)
-    combined_array = np.column_stack((timearray,differences,best_series_times_csv,best_diffs_csv,stdev))
+    combined_array = pad_and_stack_arrays([timearray,differences,best_series_times_csv,best_diffs_csv,stdev])
     #output_filename = filename[:-4]+".csv"
     logging.info("Saving output values to {}".format(output_filename))
     np_fmt = "%1.{}f".format(float_prec)
@@ -196,6 +195,16 @@ def main():
     else:
         output_file("summary.html", title="Summary Page")
         show(layout)
+
+def pad_and_stack_arrays(arrays):
+    # Find the length of the longest array
+    max_length = max(len(arr) for arr in arrays)
+    
+    # Pad shorter arrays and stack them
+    padded_arrays = [np.pad(arr, (0, max_length - len(arr)), mode='constant') for arr in arrays]
+    stacked_array = np.column_stack(padded_arrays)
+    
+    return stacked_array
 
 def plot_centered(fig, signal, time, peaks):
     zoomval = 400

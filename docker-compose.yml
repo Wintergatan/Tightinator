@@ -1,0 +1,9 @@
+version: "3.6"
+
+services:
+  wintergatan-data-analysis:
+    build: .
+    image: yanfett/wintergatan-data-analysis:latest
+    network_mode: host
+    ports:
+      - 5000

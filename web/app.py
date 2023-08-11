@@ -63,6 +63,7 @@ def run(uuid):
         '-r', rounding,
         '-p', num_peaks,
         '-b', num_buckets,
+        '-v'
     ]
 
     if request.form['webMode']:
@@ -117,6 +118,21 @@ def download(uuid,output_filename):
     else:
         return render_template('404.html'), 404
 
+def create_app(logger_override=None):
+    app = Flask(__name__)
+
+    if logger_override:
+
+        # working solely with the flask logger
+        app.logger.handlers = logger_override.handlers
+        app.logger.setLevel(logger_override.level)
+
+
+        # for logger in (app.logger, logger.getLogger('main')):
+        #     logger.handlers = logger_override.handlers
+        #     logger.setLevel(logger_override.level)
+
+    return app
 
 if __name__ == '__main__':
     app.run(debug=True)

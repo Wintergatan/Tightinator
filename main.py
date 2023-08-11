@@ -12,6 +12,7 @@ import logging
 
 filename = ''
 output_filename = ''
+downsample_rate = ''
 thresh = ''
 channel = ''
 envelope_smoothness = ''
@@ -22,21 +23,23 @@ npeaks = ''
 nbins = ''
 len_series = ''
 web_mode = False
+work_dir = ''
 x_wide = ''
 y_high = ''
 
 parser = argparse.ArgumentParser(description='Map transient times')
 parser.add_argument('-f', '--file', dest='filename', type=str, action='store', help='File to open')
 parser.add_argument('-o', '--out', dest='output_filename', type=str, action='store', help='Filename to write output values to')
-parser.add_argument('-t', '--threshold', dest='thresh', default='0.25', type=float, action='store', help='DEFAULT=0.25 Peak detection threshold, lower is rougher')
-parser.add_argument('-c', '--channel', dest='channel', default='1', type=int, action='store', help='DEFAULT=1 Channel to get the Waveform from')
-parser.add_argument('-en', '--envelope-smoothness', dest='envelope_smoothness', default='100', type=int, action='store', help='DEFAULT=100 Amount of rounding around the envelope')
-parser.add_argument('-ex', '--exclusion', dest='exclusion', default='30', type=int, action='store', help='DEFAULT=30 Exclusion threshold')
-parser.add_argument('-p', '--precision', dest='float_prec', default='6', type=int, action='store', help='DEFAULT=6 Number of decimal places to round measurements to. Ex: -p 6 = 261.51927438')
-parser.add_argument('-n', '--number-peaks', dest='npeaks', default='3', type=int, action='store', help='DEFAULT=3 Number of valid Peaks from which the leftmost is selected for better lining up between transients.')
-parser.add_argument('-b', '--bins', dest='nbins', default='0', type=int, action='store', help='DEFAULT=0 Number of Bins used for the gaussian curve.')
-parser.add_argument('-l', '--length', dest='len_series', default='100', type=int, action='store', help='DEFAULT=100 The length of the series of most consistent Beats.')
-parser.add_argument('-w', '--web', dest='web_mode', default=False, action='store_true', help='Get some width/height values from browser objects for graphing. Defaults false.')
+parser.add_argument('-d', '--downsample-rate', dest='downsample_rate', default='8', type=int, action='store', help='DEFAULT=8 Amount by which to reduce resolution. Higher resolution means longer compute.')
+parser.add_argument('-t', '--threshold', dest='thresh', default='0.25', type=float, action='store', help='DEFAULT=0.25 Peak detection threshold, lower is rougher.')
+parser.add_argument('-c', '--channel', dest='channel', default='1', type=int, action='store', help='DEFAULT=1 Channel to get the Waveform from.')
+parser.add_argument('-en', '--envelope-smoothness', dest='envelope_smoothness', default='100', type=int, action='store', help='DEFAULT=100 Amount of rounding around the envelope.')
+parser.add_argument('-ex', '--exclusion', dest='exclusion', default='30', type=int, action='store', help='DEFAULT=30 Exclusion threshold.')
+parser.add_argument('-r', '--precision', dest='float_prec', default='6', type=int, action='store', help='DEFAULT=6 Number of decimal places to round measurements to. Ex: -p 6 = 261.51927438')
+parser.add_argument('-p', '--number-peaks', dest='npeaks', default='3', type=int, action='store', help='DEFAULT=3 Number of valid peaks from which the left-most is selected for better lining up between transients.')
+parser.add_argument('-b', '--bins', dest='nbins', default='0', type=int, action='store', help='DEFAULT=0 Number of bins used for the gaussian curve.')
+parser.add_argument('-l', '--length', dest='len_series', default='100', type=int, action='store', help='DEFAULT=100 The length of the series of most consistent beats.')
+parser.add_argument('--work-dir', dest='work_dir', action='store', help='Directory structure to work under.' )
 parser.add_argument('-x', '--x-width', dest='x_wide', default='2000', type=int, action='store', help='DEFAULT=2000 Fixed width for graphs.')
 parser.add_argument('-y', '--plot-height', dest='y_high', default='600', type=int, action='store', help='DEFAULT=600 Fixed height for single plot.')
 parser.add_argument('-v', '--verbose', help="Set debug logging", action='store_true')
@@ -58,6 +61,7 @@ def main():
     envelope_smoothness = args.envelope_smoothness
     exclusion = args.exclusion
     filename = args.filename
+    downsamplerate = args.downsample_rate
     #output_filename = args.output_filename
     threshold = args.thresh
     channel = args.channel
@@ -71,14 +75,14 @@ def main():
     
     if(nbins == 0):
         nbins = int(1 + (3.322 * np.log(len_series)))
+
     # If output_filename argument not set use the uploaded filename + .csv
     if not args.output_filename:
         output_filename = filename[:-4]+".csv"
     else:
         output_filename = args.output_filename
 
-    # If in web mode set the working directory to static/upload
-    #psuedo do webmode
+
 
     # Open wav file
 
@@ -90,7 +94,6 @@ def main():
         amplitude_data = data[:,channel-1] # First channel has to be 1, only programmers know things start at 0
     else:
         amplitude_data = data
-    downsamplerate = 8
     amplitude_data = amplitude_data[::downsamplerate]
     timefactor = (frame_rate/downsamplerate)/1000
 

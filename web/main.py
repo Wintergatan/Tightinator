@@ -52,7 +52,7 @@ def main():
     logging.info(args)
 
     if args.verbose:
-        print(args)
+        #print(args)
         # Set logging level - https://docs.python.org/3/howto/logging.html#logging-basic-tutorial
         logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
     else:
@@ -83,11 +83,8 @@ def main():
     else:
         output_filename = args.work_dir + args.output_filename
 
-    print("Opening {}, creating {}".format(filename, output_filename))
+    #print("Opening {}, creating {}".format(filename, output_filename))
     logging.info("Opening {}, creating {}".format(filename, output_filename))
-
-    # If in web mode set the working directory to static/upload
-    #psuedo do webmode
 
     # Open wav file
 
@@ -99,9 +96,9 @@ def main():
         amplitude_data = data[:,channel-1] # First channel has to be 1, only programmers know things start at 0
     else:
         amplitude_data = data
-    downsamplerate = 8
     amplitude_data = amplitude_data[::downsamplerate]
     timefactor = (frame_rate/downsamplerate)/1000
+
 
 
     normalized_amplitude = amplitude_data / np.max(np.abs(amplitude_data))
@@ -114,7 +111,9 @@ def main():
     logging.info("Found {} rough peaks, refining...".format(len(peaks_roughly)))
     time = np.arange(0, len(normalized_amplitude))/timefactor
     peaks = []
+
     peaktimes = []
+
     for peak in peaks_roughly:
         search_range = 500
         max_value, max_index = find_maximum_around_peak(np.abs(normalized_amplitude), peak, search_range,npeaks)
@@ -135,10 +134,10 @@ def main():
 
     timearray = peaktimes
     differences = np.diff(timearray)
-    accel = np.gradient(differences)    
+    accel = np.gradient(differences)
     differences = np.append(differences, 0)
     stdev = np.zeros(len(peaks))
- 
+
     accel= np.append(accel, 0)
     signal = normalized_amplitude
     segment_width = 1000
@@ -148,45 +147,51 @@ def main():
     for i in range(len(diffs)-(len_series-2)):
         diff_std.append(np.std(diffs[i:i+len_series]))
     start_of_best_series=np.argmin(diff_std)
-    
+
     best_peaks = peaks[start_of_best_series:start_of_best_series+len_series]
     best_series_times = timearray[start_of_best_series:start_of_best_series+len_series]
     best_series_times_csv = np.pad(best_series_times,(0,len(peaks)-len_series),'constant')
     best_diffs = diffs[start_of_best_series:start_of_best_series+len_series]
+    best_diffs_csv = np.pad(best_diffs,(0,len(peaks)-len_series),'constant')
     stdev[0] = np.std(best_diffs)
     stdev[1] = np.std(differences)
     stdev[3] = start_of_best_series
     stdev[4] = start_of_best_series+len_series
+    stdev[5] = len(peaks)
+    stdev[7] = threshold
     best_series_amps = signal[best_peaks]
-    combined_array = np.column_stack((timearray,best_series_times_csv,stdev))
+    combined_array = np.column_stack((timearray,differences,best_series_times_csv,best_diffs_csv,stdev))
     #output_filename = filename[:-4]+".csv"
     logging.info("Saving output values to {}".format(output_filename))
     np_fmt = "%1.{}f".format(float_prec)
-    np.savetxt(output_filename, combined_array, delimiter=",", header="Times[ms],BestTimes[ms],stdevandmore[ms]", fmt=np_fmt, comments="")
-    
+    np.savetxt(output_filename, combined_array, delimiter=",", header="PeakTimes[ms],PeakDifferences[ms],BestTimes[ms],BestDifferrences[ms],data", fmt=np_fmt, comments="")
+
+
+
+
     fig_center = figure(title='Similarness plot - most consistent Beats', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]', width=int(np.floor(full_width/2)), height=plot_height)
     fig_center.output_backend = 'webgl'
     center_fig = plot_centered(fig_center,signal,time, best_peaks)
     logging.info("center_plot figure created")
-    
- 
+
+
 #    fig_peakdiff = figure(title='Tightness plot - most consistent Beats', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]', width=full_width, height=plot_height)
 #    fig_peakdiff.output_backend = 'webgl'
 #    peakdiff_fig = plot_peakdiff(fig_peakdiff,signal,time,best_peaks)
 #    logging.info("peakdiff figure created")
-    
+
     fig_waveform = figure(title='Consistency/Waveform plot', x_axis_label='Time [s]', y_axis_label='Amplitude [a.u.]', width=full_width, height=plot_height)
     fig_waveform.output_backend = 'webgl'
-    waveform_fig = plot_waveform(fig_waveform,signal,time,peaks,peaktimes,frame_rate,best_series_times)
+    waveform_fig = plot_waveform(fig_waveform,signal,time,peaks,peaktimes,frame_rate,best_series_times,threshold)
     logging.info("waveform figure created")
-    
+
     fig_stat = figure(title='Statistics plot - most consistent Beats', x_axis_label='Transient Time difference [ms]', y_axis_label='Number of Elements in Bin', width=int(np.floor(full_width/2)), height=plot_height)
     fig_stat.output_backend = 'webgl'
     stat_fig = plot_stat(fig_stat,best_series_times,best_series_amps,nbins)
     logging.info("stat figure created")
-    
+
     layout = column(waveform_fig, row(fig_center, stat_fig))
-    print("Writing graphs to {}summary.html".format(args.work_dir))
+    #print("Writing graphs to {}summary.html".format(args.work_dir))
     output_file("{}summary.html".format(args.work_dir), title="Summary Page")
     save(layout)
     #show(layout)
@@ -200,15 +205,18 @@ def plot_centered(fig, signal, time, peaks):
     segment_width = int(log_val)
     cutoff = 0
     maxheight = 1
+    xs, ys = [], []
     for peak in peaks:
         start = max(1, peak - segment_width)
         end = min(len(time), peak + segment_width)
         segment = signal[start:end]
         centered_x = time[start:end] - time[peak]
-        fig.line(centered_x[segment >cutoff], (segment[segment>cutoff])/signal[peak], alpha=0.5, legend_label='centered Waveform')
+        xs.append( centered_x[segment >cutoff])
+        ys.append((segment[segment>cutoff])/signal[peak])
         newmax = max((segment[segment>cutoff])/signal[peak])
         if(newmax > maxheight):
             maxheight = newmax
+    fig.multi_line(xs, ys, alpha=0.5, legend_label='centered Waveform')
     fig.circle(0, 1, size=10, fill_color='red', legend_label='detected peaks')
     fig.x_range.start = min(centered_x[segment >cutoff])
     fig.x_range.end = max(centered_x[segment >cutoff])
@@ -216,19 +224,23 @@ def plot_centered(fig, signal, time, peaks):
     fig.y_range.end = maxheight + 0.05
     fig.xaxis.ticker.num_minor_ticks = 9
     return fig
-    
-    
+
+
 def plot_peakdiff(fig, signal, time, peaks):
     cutoff = 0.01
     diff_times = []
+    xs, ys = [],[]
     for i in range(len(peaks) - 2):
         start = peaks[i]  # Start index at the current peak
         end = peaks[i + 2]  # End index at the next peak
         segment = signal[start:end]
         peakdiff_x = time[start:end] - time[start]  # Adjust x-axis values relative to the start
         diff_times.append(time[peaks[i+1] - peaks[i]])
-        fig.line(peakdiff_x[segment >cutoff], segment[segment >cutoff], alpha=0.5, legend_label='Peak Waveform')
+        xs.append(peakdiff_x[segment >cutoff])
+        ys.append(segment[segment >cutoff])
         fig.circle(diff_times[i], signal[peaks[i+1]], size=10, fill_color='red', legend_label='detected Peak')
+
+    fig.multi_line(xs, ys, alpha=0.5, legend_label='Peak Waveform')
     zoomfact = 5
     data_center = round(np.mean(diff_times))
     segment_width = zoomfact*round(np.std(diff_times))
@@ -238,8 +250,8 @@ def plot_peakdiff(fig, signal, time, peaks):
     fig.y_range.end = 1
     fig.xaxis.ticker.num_minor_ticks = 9
     return fig
-    
-def plot_waveform(fig, signal, time, peaks,peaktimes,frame_rate,best_series_times):
+
+def plot_waveform(fig, signal, time, peaks,peaktimes,frame_rate,best_series_times,sensitivity):
     cutoff = 0.01
 
     signal_cut = signal[signal >cutoff]
@@ -297,9 +309,14 @@ def plot_waveform(fig, signal, time, peaks,peaktimes,frame_rate,best_series_time
     y_range_end = 1   # Define the end value for the y-axis range on the left
     fig.y_range = Range1d(start=y_range_start, end=y_range_end)  # Set the y-range of the left y-axis
     fig.xaxis.ticker.num_minor_ticks = 9
+    text_annotation1 = Label(x=0, y=0, text="sensitivity = "+f"{sensitivity:.2f}", text_font_size="12pt", background_fill_color = "white")
+    fig.add_layout(text_annotation1)
+
     return fig
 
+
 def plot_stat(fig, peak_times, y_data,nbins):
+
 
     x_data = np.diff(peak_times)
     mean_x = np.mean(x_data)
@@ -347,9 +364,12 @@ def plot_stat(fig, peak_times, y_data,nbins):
     fig.x_range.start = mean_x-(stddeviations)*std_x
     fig.x_range.end = mean_x+(stddeviations)*std_x
 
+
+
+
     return fig
 
-    
+
 def find_maximum_around_peak(data, peak_location, search_range, npeaks):
     """
     Find the maximum value within a specified search range around a given peak location.
@@ -405,9 +425,7 @@ def moving_average(data, window_size):
 
 def replace_negatives_with_neighbors(lst):
     new_lst = lst.copy()  # Create a copy of the original list
-    for i in range(len(lst)):
-        if lst[i] < 0:
-            new_lst[i] = np.abs(lst[i])
+    new_lst = np.abs(lst)
     return new_lst
 
 

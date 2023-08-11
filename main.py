@@ -146,16 +146,19 @@ def main():
     best_series_times = timearray[start_of_best_series:start_of_best_series+len_series]
     best_series_times_csv = np.pad(best_series_times,(0,len(peaks)-len_series),'constant')
     best_diffs = diffs[start_of_best_series:start_of_best_series+len_series]
+    best_diffs_csv = np.pad(best_diffs,(0,len(peaks)-len_series),'constant')
     stdev[0] = np.std(best_diffs)
     stdev[1] = np.std(differences)
     stdev[3] = start_of_best_series
     stdev[4] = start_of_best_series+len_series
+    stdev[5] = len(peaks)
+    stdev[7] = threshold
     best_series_amps = signal[best_peaks]
-    combined_array = np.column_stack((timearray,best_series_times_csv,stdev))
+    combined_array = np.column_stack((timearray,differences,best_series_times_csv,best_diffs_csv,stdev))
     #output_filename = filename[:-4]+".csv"
     logging.info("Saving output values to {}".format(output_filename))
     np_fmt = "%1.{}f".format(float_prec)
-    np.savetxt(output_filename, combined_array, delimiter=",", header="Times[ms],BestTimes[ms],stdevandmore[ms]", fmt=np_fmt, comments="")
+    np.savetxt(output_filename, combined_array, delimiter=",", header="PeakTimes[ms],PeakDifferences[ms],BestTimes[ms],BestDifferrences[ms],data", fmt=np_fmt, comments="")
 
 
 
@@ -173,7 +176,7 @@ def main():
     
     fig_waveform = figure(title='Consistency/Waveform plot', x_axis_label='Time [s]', y_axis_label='Amplitude [a.u.]', width=full_width, height=plot_height)
     fig_waveform.output_backend = 'webgl'
-    waveform_fig = plot_waveform(fig_waveform,signal,time,peaks,peaktimes,frame_rate,best_series_times)
+    waveform_fig = plot_waveform(fig_waveform,signal,time,peaks,peaktimes,frame_rate,best_series_times,threshold)
     logging.info("waveform figure created")
     
     fig_stat = figure(title='Statistics plot - most consistent Beats', x_axis_label='Transient Time difference [ms]', y_axis_label='Number of Elements in Bin', width=int(np.floor(full_width/2)), height=plot_height)
@@ -240,7 +243,7 @@ def plot_peakdiff(fig, signal, time, peaks):
     fig.xaxis.ticker.num_minor_ticks = 9
     return fig
     
-def plot_waveform(fig, signal, time, peaks,peaktimes,frame_rate,best_series_times):
+def plot_waveform(fig, signal, time, peaks,peaktimes,frame_rate,best_series_times,sensitivity):
     cutoff = 0.01
 
     signal_cut = signal[signal >cutoff]
@@ -298,6 +301,9 @@ def plot_waveform(fig, signal, time, peaks,peaktimes,frame_rate,best_series_time
     y_range_end = 1   # Define the end value for the y-axis range on the left
     fig.y_range = Range1d(start=y_range_start, end=y_range_end)  # Set the y-range of the left y-axis
     fig.xaxis.ticker.num_minor_ticks = 9
+    text_annotation1 = Label(x=0, y=0, text="sensitivity = "+f"{sensitivity:.2f}", text_font_size="12pt", background_fill_color = "white")
+    fig.add_layout(text_annotation1)
+    
     return fig
 
     

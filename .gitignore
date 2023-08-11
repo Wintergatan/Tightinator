@@ -1,3 +1,8 @@
 web/static/upload/*
 *swp
 *.DS_Store
+web/main.py
+*.log
+summary.html
+web/__pycache__
+sample_data/*.csv

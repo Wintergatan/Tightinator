@@ -73,6 +73,7 @@
         #downloadLink {
             display: inline-block;
             text-align: center;
+            margin-left: 10px;
         }
 
         #homeButton {
@@ -120,7 +121,8 @@
         <h1>Peak Detection Results</h1>
 
         <div id="downloadLink">
-            <a id="downloadButton" href="/download/{{ uuid }}/{{ output_filename }}" download>Download {{ output_filename }}</a>
+            <a id="downloadButton" href="/download/{{ uuid }}/{{ output_filename }}">Download {{ output_filename }}</a>
+            <a id="downloadButton" href="/config/{{ uuid }}/{{ output_filename }}">Return to settings</a>
             <a id="homeLink" href="{{ url_for('index') }}">Upload another file</a>
         </div>
 

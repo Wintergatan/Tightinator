@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 import numpy as np
-from bokeh.plotting import figure, show, output_file
+from bokeh.plotting import figure, show, output_file, save
 from bokeh.models import LinearAxis, Range1d, Label
 from bokeh.layouts import row, column
 from scipy import integrate
@@ -12,6 +12,7 @@ import logging
 
 filename = ''
 output_filename = ''
+downsample_rate = ''
 thresh = ''
 channel = ''
 envelope_smoothness = ''
@@ -21,6 +22,7 @@ verbose = ''
 npeaks = ''
 nbins = ''
 len_series = ''
+work_dir = ''
 web_mode = False
 x_wide = ''
 y_high = ''
@@ -28,15 +30,18 @@ y_high = ''
 parser = argparse.ArgumentParser(description='Map transient times')
 parser.add_argument('-f', '--file', dest='filename', type=str, action='store', help='File to open')
 parser.add_argument('-o', '--out', dest='output_filename', type=str, action='store', help='Filename to write output values to')
-parser.add_argument('-t', '--threshold', dest='thresh', default='0.25', type=float, action='store', help='DEFAULT=0.25 Peak detection threshold, lower is rougher')
-parser.add_argument('-c', '--channel', dest='channel', default='1', type=int, action='store', help='DEFAULT=1 Channel to get the Waveform from')
-parser.add_argument('-en', '--envelope-smoothness', dest='envelope_smoothness', default='100', type=int, action='store', help='DEFAULT=100 Amount of rounding around the envelope')
-parser.add_argument('-ex', '--exclusion', dest='exclusion', default='30', type=int, action='store', help='DEFAULT=30 Exclusion threshold')
-parser.add_argument('-p', '--precision', dest='float_prec', default='6', type=int, action='store', help='DEFAULT=6 Number of decimal places to round measurements to. Ex: -p 6 = 261.51927438')
-parser.add_argument('-n', '--number-peaks', dest='npeaks', default='3', type=int, action='store', help='DEFAULT=3 Number of valid Peaks from which the leftmost is selected for better lining up between transients.')
-parser.add_argument('-b', '--bins', dest='nbins', default='0', type=int, action='store', help='DEFAULT=0 Number of Bins used for the gaussian curve.')
-parser.add_argument('-l', '--length', dest='len_series', default='100', type=int, action='store', help='DEFAULT=100 The length of the series of most consistent Beats.')
-parser.add_argument('-w', '--web', dest='web_mode', default=False, action='store_true', help='Get some width/height values from browser objects for graphing. Defaults false.')
+parser.add_argument('-d', '--downsample-rate', dest='downsample_rate', default='8', type=int, action='store', help='DEFAULT=8 Amount by which to reduce resolution. Higher resolution means longer compute.')
+parser.add_argument('-t', '--threshold', dest='thresh', default='0.25', type=float, action='store', help='DEFAULT=0.25 Peak detection threshold, lower is rougher.')
+parser.add_argument('-c', '--channel', dest='channel', default='1', type=int, action='store', help='DEFAULT=1 Channel to get the Waveform from.')
+parser.add_argument('-en', '--envelope-smoothness', dest='envelope_smoothness', default='100', type=int, action='store', help='DEFAULT=100 Amount of rounding around the envelope.')
+parser.add_argument('-ex', '--exclusion', dest='exclusion', default='30', type=int, action='store', help='DEFAULT=30 Exclusion threshold.')
+parser.add_argument('-r', '--precision', dest='float_prec', default='6', type=int, action='store', help='DEFAULT=6 Number of decimal places to round measurements to. Ex: -p 6 = 261.51927438')
+parser.add_argument('-p', '--number-peaks', dest='npeaks', default='3', type=int, action='store', help='DEFAULT=3 Number of valid peaks from which the left-most is selected for better lining up between transients.')
+parser.add_argument('-b', '--bins', dest='nbins', default='0', type=int, action='store', help='DEFAULT=0 Number of bins used for the gaussian curve.')
+parser.add_argument('-l', '--length', dest='len_series', default='100', type=int, action='store', help='DEFAULT=100 The length of the series of most consistent beats.')
+parser.add_argument('-w', '--web', dest='web_mode', default=False, action='store_true', help='DEFAULT=False Get some width/height values from/ browser objects for graphing. Defaults false.')
+
+parser.add_argument('--work-dir', dest='work_dir', action='store', help='Directory structure to work under.' )
 parser.add_argument('-x', '--x-width', dest='x_wide', default='2000', type=int, action='store', help='DEFAULT=2000 Fixed width for graphs.')
 parser.add_argument('-y', '--plot-height', dest='y_high', default='600', type=int, action='store', help='DEFAULT=600 Fixed height for single plot.')
 parser.add_argument('-v', '--verbose', help="Set debug logging", action='store_true')
@@ -46,7 +51,6 @@ args = parser.parse_args()
 def main():
 
     logging.info(args)
-
     if args.verbose:
         print(args)
         # Set logging level - https://docs.python.org/3/howto/logging.html#logging-basic-tutorial
@@ -55,9 +59,10 @@ def main():
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
     # User configuration values
+    filename = args.filename
     envelope_smoothness = args.envelope_smoothness
     exclusion = args.exclusion
-    filename = args.filename
+    downsamplerate = args.downsample_rate
     #output_filename = args.output_filename
     threshold = args.thresh
     channel = args.channel
@@ -65,32 +70,39 @@ def main():
     nbins = args.nbins
     npeaks = args.npeaks
     len_series = args.len_series
-    web_mode = args.web_mode
-    full_width = args.x_wide
+    full_width = args.x_wide - 15
     plot_height = args.y_high
-    
+    plot_height = int((plot_height-140)/2)
+
     if(nbins == 0):
         nbins = int(1 + (3.322 * np.log(len_series)))
+
     # If output_filename argument not set use the uploaded filename + .csv
     if not args.output_filename:
         output_filename = filename[:-4]+".csv"
     else:
         output_filename = args.output_filename
 
-    # If in web mode set the working directory to static/upload
-    #psuedo do webmode
+    # If web mode add the work dir to the filenames
+    if args.web_mode:
+        if not args.work_dir:
+            work_dir = 'static/upload/test/'
+        else:
+            work_dir = args.work_dir
+            filename = work_dir + filename
+            output_filename = work_dir + output_filename
+            print("{}, {}".format(filename, output_filename))
 
     # Open wav file
-
     frame_rate, data = wavfile.read(filename)
     num_channels = data.shape[1] if len(data.shape) > 1 else 1
     if(channel > num_channels):
         channel = num_channels-1
+
     if(num_channels > 1):
         amplitude_data = data[:,channel-1] # First channel has to be 1, only programmers know things start at 0
     else:
         amplitude_data = data
-    downsamplerate = 8
     amplitude_data = amplitude_data[::downsamplerate]
     timefactor = (frame_rate/downsamplerate)/1000
 
@@ -128,10 +140,10 @@ def main():
 
     timearray = peaktimes
     differences = np.diff(timearray)
-    accel = np.gradient(differences)    
+    accel = np.gradient(differences)
     differences = np.append(differences, 0)
     stdev = np.zeros(len(peaks))
- 
+
     accel= np.append(accel, 0)
     signal = normalized_amplitude
     segment_width = 1000
@@ -141,7 +153,7 @@ def main():
     for i in range(len(diffs)-(len_series-2)):
         diff_std.append(np.std(diffs[i:i+len_series]))
     start_of_best_series=np.argmin(diff_std)
-    
+
     best_peaks = peaks[start_of_best_series:start_of_best_series+len_series]
     best_series_times = timearray[start_of_best_series:start_of_best_series+len_series]
     best_series_times_csv = np.pad(best_series_times,(0,len(peaks)-len_series),'constant')
@@ -160,33 +172,29 @@ def main():
     np_fmt = "%1.{}f".format(float_prec)
     np.savetxt(output_filename, combined_array, delimiter=",", header="PeakTimes[ms],PeakDifferences[ms],BestTimes[ms],BestDifferrences[ms],data", fmt=np_fmt, comments="")
 
-
-
-    
     fig_center = figure(title='Similarness plot - most consistent Beats', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]', width=int(np.floor(full_width/2)), height=plot_height)
     fig_center.output_backend = 'webgl'
     center_fig = plot_centered(fig_center,signal,time, best_peaks)
     logging.info("center_plot figure created")
-    
- 
-#    fig_peakdiff = figure(title='Tightness plot - most consistent Beats', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]', width=full_width, height=plot_height)
-#    fig_peakdiff.output_backend = 'webgl'
-#    peakdiff_fig = plot_peakdiff(fig_peakdiff,signal,time,best_peaks)
-#    logging.info("peakdiff figure created")
-    
+
     fig_waveform = figure(title='Consistency/Waveform plot', x_axis_label='Time [s]', y_axis_label='Amplitude [a.u.]', width=full_width, height=plot_height)
     fig_waveform.output_backend = 'webgl'
     waveform_fig = plot_waveform(fig_waveform,signal,time,peaks,peaktimes,frame_rate,best_series_times,threshold)
     logging.info("waveform figure created")
-    
+
     fig_stat = figure(title='Statistics plot - most consistent Beats', x_axis_label='Transient Time difference [ms]', y_axis_label='Number of Elements in Bin', width=int(np.floor(full_width/2)), height=plot_height)
     fig_stat.output_backend = 'webgl'
     stat_fig = plot_stat(fig_stat,best_series_times,best_series_amps,nbins)
     logging.info("stat figure created")
-    
+
     layout = column(waveform_fig, row(fig_center, stat_fig))
-    output_file("summary.html", title="Summary Page")
-    show(layout)
+    if args.web_mode:
+        print("Writing graphs to {}summary.html".format(work_dir))
+        output_file("{}summary.html".format(work_dir), title="Summary Page")
+        save(layout)
+    else:
+        output_file("summary.html", title="Summary Page")
+        show(layout)
 
 def pad_and_stack_arrays(arrays):
     # Find the length of the longest array
@@ -199,7 +207,6 @@ def pad_and_stack_arrays(arrays):
     return stacked_array
 
 def plot_centered(fig, signal, time, peaks):
-
     zoomval = 400
     log_val = np.exp(zoomval / 100)
 
@@ -226,8 +233,7 @@ def plot_centered(fig, signal, time, peaks):
     fig.y_range.end = maxheight + 0.05
     fig.xaxis.ticker.num_minor_ticks = 9
     return fig
-    
-    
+
 def plot_peakdiff(fig, signal, time, peaks):
     cutoff = 0.01
     diff_times = []
@@ -252,6 +258,7 @@ def plot_peakdiff(fig, signal, time, peaks):
     fig.y_range.end = 1
     fig.xaxis.ticker.num_minor_ticks = 9
     return fig
+
     
 def plot_waveform(fig, signal, time, peaks,peaktimes,frame_rate,best_series_times,sensitivity):
     cutoff = 0.01
@@ -289,21 +296,17 @@ def plot_waveform(fig, signal, time, peaks,peaktimes,frame_rate,best_series_time
     fig.vbar(x=peak_middles, top=peak_bpm, width=(peak_differences/1000)*0.9, y_range_name="peak_diff_range", color = 'green', fill_alpha=1, legend_label='BPM')
     #fig.line(x=peak_middles,y=(norm_accel_best*0.10)+0.5, line_color="darkgoldenrod", legend_label= 'acceleration of BPM', line_width=3)
     #fig.line(x=[0,len(time)],y=[0.5,0.5], line_color="black", line_dash="dotted")
-    #fig.vbar(x=peak_middles, bottom=peak_bpm + (np.abs(accel)*-1),top=peak_bpm , width=(peak_differences/1000)*0.5, y_range_name="peak_diff_range", color = fill_color, fill_alpha=1, legend_label='BPM Acceleration')    
+    #fig.vbar(x=peak_middles, bottom=peak_bpm + (np.abs(accel)*-1),top=peak_bpm , width=(peak_differences/1000)*0.5, y_range_name="peak_diff_range", color = fill_color, fill_alpha=1, legend_label='BPM Acceleration')
     fig.line(time_cut, signal_cut, legend_label='Waveform')
     fig.circle(time_xax[peaks], signal[peaks], legend_label='Detected Peaks', color = 'red')
     accel_start = max(0,diff_mean-zoom_factor*diff_stdev)
-    fig.vbar(x=peak_middles, bottom=accel_start,top=accel_start + (np.abs(accel)) , width=(peak_differences/1000)*0.5, y_range_name="peak_diff_range", color = fill_color, fill_alpha=1, legend_label='BPM Acceleration')    
+    fig.vbar(x=peak_middles, bottom=accel_start,top=accel_start + (np.abs(accel)) , width=(peak_differences/1000)*0.5, y_range_name="peak_diff_range", color = fill_color, fill_alpha=1, legend_label='BPM Acceleration')
     x_coordinate = best_series_times[0]/1000
 
     fig.line(x=[x_coordinate,x_coordinate], y=[0,1], line_width=2, line_dash="dashed", line_color="black", legend_label= 'Segment of most consistent Beats')
     x_coordinate = max(best_series_times)/1000
 
     fig.line(x=[x_coordinate,x_coordinate], y=[0,1], line_width=2, line_dash="dashed", line_color="black")
-    
-    #fig.extra_y_ranges = {"peak_diff_range": Range1d(start=(1-resolution)*scaling_factor, end=(1+resolution)*scaling_factor)}
-
-
 
     fig.x_range.start = visible_start
     fig.x_range.end = visible_end
@@ -316,22 +319,19 @@ def plot_waveform(fig, signal, time, peaks,peaktimes,frame_rate,best_series_time
     
     return fig
 
-    
 def plot_stat(fig, peak_times, y_data,nbins):
-    
-    
     x_data = np.diff(peak_times)
     mean_x = np.mean(x_data)
     std_x = np.std(x_data)
-    
+
     stddeviations = 5
     max_dist= max(abs(mean_x-min(x_data)),abs(mean_x+max(x_data)))
     x_curve = np.linspace(mean_x-stddeviations*std_x, mean_x+stddeviations*std_x, 1000)
     y_curve = np.linspace(min(y_data)-50, max(y_data)+50, 1000)
-    
+
     # Calculate the unnormalized Gaussian values
     x_gaussian = np.exp(-0.5 * ((x_curve - mean_x) / std_x)**2) / (std_x * np.sqrt(2 * np.pi))
-    
+
     #x_gaussian = x_gaussian * x_normalization_factor  # Corrected line
     area_under_curve= np.trapz(x_gaussian, x_curve)
     #y_gaussian = np.exp(-0.5 * ((y_curve - mean_y) / std_y)**2) / (std_y * np.sqrt(2 * np.pi))
@@ -349,7 +349,7 @@ def plot_stat(fig, peak_times, y_data,nbins):
     row_spacing = max(x_gaussian)/(num_elements_in_highest_bin)
     fig.y_range = Range1d(start=0, end=num_elements_in_highest_bin)
     peakamps =y_data[1:]
-    
+
     fig.extra_y_ranges = {"gaussian_range": Range1d(start=0, end=max(x_gaussian))}
     fig.add_layout(LinearAxis(y_range_name="gaussian_range", axis_label="Probability Density [a.u.]"), 'right')  # Add the right y-axis
     fig.line(x_curve, x_gaussian, y_range_name="gaussian_range", color= 'red', line_width = 2.5, legend_label='Gaussian distribution')
@@ -357,21 +357,17 @@ def plot_stat(fig, peak_times, y_data,nbins):
 
     fig.xaxis.ticker.num_minor_ticks = 9
     xshift = 0
-    
+
     text_annotation1 = Label(x=(mean_x-(stddeviations-xshift)*std_x), y=(num_elements_in_highest_bin)*0.94, text="standard deviation = "+f"{std_x:.2f}"+" ms", text_font_size="20pt")
     text_annotation2 = Label(x=(mean_x-(stddeviations-xshift)*std_x), y=(num_elements_in_highest_bin)*0.88, text="mean = "+f"{mean_x:.2f}"+" ms", text_font_size="20pt")
     fig.add_layout(text_annotation1)
     fig.add_layout(text_annotation2)
-    
+
     fig.x_range.start = mean_x-(stddeviations)*std_x
     fig.x_range.end = mean_x+(stddeviations)*std_x
-    
-    
-    
-    
+
     return fig
 
-    
 def find_maximum_around_peak(data, peak_location, search_range, npeaks):
     """
     Find the maximum value within a specified search range around a given peak location.
@@ -430,9 +426,5 @@ def replace_negatives_with_neighbors(lst):
     new_lst = np.abs(lst)
     return new_lst
 
-
-
 if __name__ == '__main__':
     main()
-
-

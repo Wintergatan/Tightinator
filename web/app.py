@@ -33,6 +33,7 @@ def config(uuid, filename):
     # Call generate_csv here after the user is redirected to the config endpoint
     #generate_csv(f'static/upload/{uuid}/{uuid}.wav', output_csv, threshold)
     output_filename = filename[:-4]+".csv"
+    output_filename = output_filename.replace(" ", "_")
 
     return render_template('config.html', uuid=uuid, filename=filename, output_filename=output_filename)
 
@@ -63,6 +64,8 @@ def run(uuid):
         '-r', rounding,
         '-p', num_peaks,
         '-b', num_buckets,
+        '-w',
+        '-v'
     ]
 
     if request.form['webMode']:
@@ -117,6 +120,21 @@ def download(uuid,output_filename):
     else:
         return render_template('404.html'), 404
 
+def create_app(logger_override=None):
+    app = Flask(__name__)
+
+    if logger_override:
+
+        # working solely with the flask logger
+        app.logger.handlers = logger_override.handlers
+        app.logger.setLevel(logger_override.level)
+
+
+        # for logger in (app.logger, logger.getLogger('main')):
+        #     logger.handlers = logger_override.handlers
+        #     logger.setLevel(logger_override.level)
+
+    return app
 
 if __name__ == '__main__':
     app.run(debug=True)

@@ -5,5 +5,7 @@ services:
     build: .
     image: yanfett/wintergatan-data-analysis:latest
     network_mode: host
+    environment:
+      - DEBUG_MODE=False
     ports:
       - 5000

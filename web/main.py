@@ -52,7 +52,7 @@ def main():
     logging.info(args)
 
     if args.verbose:
-        print(args)
+        #print(args)
         # Set logging level - https://docs.python.org/3/howto/logging.html#logging-basic-tutorial
         logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
     else:
@@ -83,7 +83,7 @@ def main():
     else:
         output_filename = args.work_dir + args.output_filename
 
-    print("Opening {}, creating {}".format(filename, output_filename))
+    #print("Opening {}, creating {}".format(filename, output_filename))
     logging.info("Opening {}, creating {}".format(filename, output_filename))
 
     # If in web mode set the working directory to static/upload
@@ -186,7 +186,7 @@ def main():
     logging.info("stat figure created")
     
     layout = column(waveform_fig, row(fig_center, stat_fig))
-    print("Writing graphs to {}summary.html".format(args.work_dir))
+    #print("Writing graphs to {}summary.html".format(args.work_dir))
     output_file("{}summary.html".format(args.work_dir), title="Summary Page")
     save(layout)
     #show(layout)

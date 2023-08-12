@@ -26,6 +26,7 @@ work_dir = ''
 web_mode = False
 x_wide = ''
 y_high = ''
+bpm_zoom = ''
 
 parser = argparse.ArgumentParser(description='Map transient times')
 parser.add_argument('-f', '--file', dest='filename', type=str, action='store', help='File to open')
@@ -40,10 +41,11 @@ parser.add_argument('-p', '--number-peaks', dest='npeaks', default='3', type=int
 parser.add_argument('-b', '--bins', dest='nbins', default='0', type=int, action='store', help='DEFAULT=0 Number of bins used for the gaussian curve.')
 parser.add_argument('-l', '--length', dest='len_series', default='100', type=int, action='store', help='DEFAULT=100 The length of the series of most consistent beats.')
 parser.add_argument('-w', '--web', dest='web_mode', default=False, action='store_true', help='DEFAULT=False Get some width/height values from/ browser objects for graphing. Defaults false.')
+parser.add_argument('-bz', '--bpm-zoom', dest='bpm_zoom', default=True, action='store_true', help='DEFAULT=True Wether the BPM is should be zoomed into the best 100 series or not. Defaults True.')
 
 parser.add_argument('--work-dir', dest='work_dir', action='store', help='Directory structure to work under.' )
 parser.add_argument('-x', '--x-width', dest='x_wide', default='2000', type=int, action='store', help='DEFAULT=2000 Fixed width for graphs.')
-parser.add_argument('-y', '--plot-height', dest='y_high', default='600', type=int, action='store', help='DEFAULT=600 Fixed height for single plot.')
+parser.add_argument('-y', '--plot-height', dest='y_high', default='1340', type=int, action='store', help='DEFAULT=600 Fixed height for single plot.')
 parser.add_argument('-v', '--verbose', help="Set debug logging", action='store_true')
 
 args = parser.parse_args()
@@ -72,7 +74,9 @@ def main():
     len_series = args.len_series
     full_width = args.x_wide - 15
     plot_height = args.y_high
+    bpm_zoom = args.bpm_zoom
     plot_height = int((plot_height-140)/2)
+
 
     if(nbins == 0):
         nbins = int(1 + (3.322 * np.log(len_series)))
@@ -176,10 +180,10 @@ def main():
     fig_center.output_backend = 'webgl'
     center_fig = plot_centered(fig_center,signal,time, best_peaks)
     logging.info("center_plot figure created")
-
+    
     fig_waveform = figure(title='Consistency/Waveform plot', x_axis_label='Time [s]', y_axis_label='Amplitude [a.u.]', width=full_width, height=plot_height)
     fig_waveform.output_backend = 'webgl'
-    waveform_fig = plot_waveform(fig_waveform,signal,time,peaks,peaktimes,frame_rate,best_series_times,threshold)
+    waveform_fig = plot_waveform(fig_waveform,signal,time,peaks,peaktimes,frame_rate,best_series_times,threshold,bpm_zoom)
     logging.info("waveform figure created")
 
     fig_stat = figure(title='Statistics plot - most consistent Beats', x_axis_label='Transient Time difference [ms]', y_axis_label='Number of Elements in Bin', width=int(np.floor(full_width/2)), height=plot_height)
@@ -260,7 +264,7 @@ def plot_peakdiff(fig, signal, time, peaks):
     return fig
 
     
-def plot_waveform(fig, signal, time, peaks,peaktimes,frame_rate,best_series_times,sensitivity):
+def plot_waveform(fig, signal, time, peaks,peaktimes,frame_rate,best_series_times,sensitivity,bpm_zoom):
     cutoff = 0.01
 
     signal_cut = signal[signal >cutoff]
@@ -291,7 +295,18 @@ def plot_waveform(fig, signal, time, peaks,peaktimes,frame_rate,best_series_time
             fill_color.append('darkred')  # Red for negative acceleration
         else:
             fill_color.append('darkorange')  # Orange for positive acceleration
-    fig.extra_y_ranges = {"peak_diff_range": Range1d(max(0,diff_mean-zoom_factor*diff_stdev), diff_mean+zoom_factor*diff_stdev)}
+    if(bpm_zoom):
+        secyrange_start = max(0,diff_mean-zoom_factor*diff_stdev)
+        secyrange_end = diff_mean+zoom_factor*diff_stdev
+        accel_bottom = secyrange_start
+        accel_top = accel_bottom + np.abs(accel)
+    else:
+        secyrange_start = 0
+        secyrange_end = max(peak_bpm)
+        accel_bottom = 0
+        accel_top = np.abs(accel)
+    
+    fig.extra_y_ranges = {"peak_diff_range": Range1d(secyrange_start, secyrange_end)}
     fig.add_layout(LinearAxis(y_range_name="peak_diff_range", axis_label="BPM [Hz]"), 'right')  # Add the right y-axis
     fig.vbar(x=peak_middles, top=peak_bpm, width=(peak_differences/1000)*0.9, y_range_name="peak_diff_range", color = 'green', fill_alpha=1, legend_label='BPM')
     #fig.line(x=peak_middles,y=(norm_accel_best*0.10)+0.5, line_color="darkgoldenrod", legend_label= 'acceleration of BPM', line_width=3)
@@ -299,8 +314,8 @@ def plot_waveform(fig, signal, time, peaks,peaktimes,frame_rate,best_series_time
     #fig.vbar(x=peak_middles, bottom=peak_bpm + (np.abs(accel)*-1),top=peak_bpm , width=(peak_differences/1000)*0.5, y_range_name="peak_diff_range", color = fill_color, fill_alpha=1, legend_label='BPM Acceleration')
     fig.line(time_cut, signal_cut, legend_label='Waveform')
     fig.circle(time_xax[peaks], signal[peaks], legend_label='Detected Peaks', color = 'red')
-    accel_start = max(0,diff_mean-zoom_factor*diff_stdev)
-    fig.vbar(x=peak_middles, bottom=accel_start,top=accel_start + (np.abs(accel)) , width=(peak_differences/1000)*0.5, y_range_name="peak_diff_range", color = fill_color, fill_alpha=1, legend_label='BPM Acceleration')
+    #accel_start = max(0,diff_mean-zoom_factor*diff_stdev)
+    fig.vbar(x=peak_middles, bottom=accel_bottom,top=accel_top , width=(peak_differences/1000)*0.5, y_range_name="peak_diff_range", color = fill_color, fill_alpha=1, legend_label='BPM Acceleration')
     x_coordinate = best_series_times[0]/1000
 
     fig.line(x=[x_coordinate,x_coordinate], y=[0,1], line_width=2, line_dash="dashed", line_color="black", legend_label= 'Segment of most consistent Beats')

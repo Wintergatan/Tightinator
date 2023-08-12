@@ -41,7 +41,7 @@ parser.add_argument('-p', '--number-peaks', dest='npeaks', default='3', type=int
 parser.add_argument('-b', '--bins', dest='nbins', default='0', type=int, action='store', help='DEFAULT=0 Number of bins used for the gaussian curve.')
 parser.add_argument('-l', '--length', dest='len_series', default='100', type=int, action='store', help='DEFAULT=100 The length of the series of most consistent beats.')
 parser.add_argument('-w', '--web', dest='web_mode', default=False, action='store_true', help='DEFAULT=False Get some width/height values from/ browser objects for graphing. Defaults false.')
-parser.add_argument('-z', '--bpm-zoom', dest='bpm_zoom', default='0', type=float, action='store', help='DEFAULT=0 Wether the BPM is should be zoomed into the best 100 series or not. Defaults 0.')
+parser.add_argument('-z', '--bpm-zoom', dest='bpm_zoom', default='0', type=float, action='store', help='DEFAULT=0 The target BPM of the Song. Will be scaled to 75% height. 0 means old behaviour. Defaults 0.')
 
 parser.add_argument('--work-dir', dest='work_dir', action='store', help='Directory structure to work under.' )
 parser.add_argument('-x', '--x-width', dest='x_wide', default='2000', type=int, action='store', help='DEFAULT=2000 Fixed width for graphs.')
@@ -302,7 +302,7 @@ def plot_waveform(fig, signal, time, peaks,peaktimes,frame_rate,best_series_time
         accel_top = accel_bottom + np.abs(accel)
     else:
         secyrange_start = 0
-        secyrange_end = max(peak_bpm)/bpm_zoom
+        secyrange_end = bpm_zoom/0.75
         accel_bottom = 0
         accel_top = np.abs(accel)
     

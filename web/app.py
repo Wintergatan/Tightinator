@@ -42,6 +42,7 @@ def run(uuid):
     filename = str(request.form['filename'])
     output_filename = str(request.form['output_filename'])
 
+    bpm_zoom = str(request.form['bpmZoom'])
     threshold = str(request.form['threshold'])
     roundness = str(request.form['roundness'])
     sample_size = str(request.form['sample'])
@@ -58,6 +59,7 @@ def run(uuid):
         '-f', filename,
         '-o', output_filename,
         '-d', downsample_rate,
+        '-z', bpm_zoom,
         '-t', threshold,
         '-en', roundness,
         '-l', sample_size,

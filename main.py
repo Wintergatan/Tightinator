@@ -335,6 +335,8 @@ def plot_waveform(fig, signal, time, peaks,peaktimes,frame_rate,best_series_time
     return fig
 
 def plot_stat(fig, peak_times, y_data,nbins):
+    if(nbins == 0):
+        nbins = int(1 + (3.322 * np.log(len_series)))
     x_data = np.diff(peak_times)
     mean_x = np.mean(x_data)
     std_x = np.std(x_data)
@@ -346,10 +348,7 @@ def plot_stat(fig, peak_times, y_data,nbins):
 
     # Calculate the unnormalized Gaussian values
     x_gaussian = np.exp(-0.5 * ((x_curve - mean_x) / std_x)**2) / (std_x * np.sqrt(2 * np.pi))
-
-    #x_gaussian = x_gaussian * x_normalization_factor  # Corrected line
     area_under_curve= np.trapz(x_gaussian, x_curve)
-    #y_gaussian = np.exp(-0.5 * ((y_curve - mean_y) / std_y)**2) / (std_y * np.sqrt(2 * np.pi))
     x_gaussian = x_gaussian / area_under_curve
     # Plot the curves
     num_bins = nbins
@@ -364,22 +363,32 @@ def plot_stat(fig, peak_times, y_data,nbins):
     row_spacing = max(x_gaussian)/(num_elements_in_highest_bin)
     fig.y_range = Range1d(start=0, end=num_elements_in_highest_bin)
     peakamps =y_data[1:]
-
     fig.extra_y_ranges = {"gaussian_range": Range1d(start=0, end=max(x_gaussian))}
     fig.add_layout(LinearAxis(y_range_name="gaussian_range", axis_label="Probability Density [a.u.]"), 'right')  # Add the right y-axis
     fig.line(x_curve, x_gaussian, y_range_name="gaussian_range", color= 'red', line_width = 2.5, legend_label='Gaussian distribution')
-    fig.circle(x_data,(peakamps / np.max(np.abs(peakamps)))*(num_elements_in_highest_bin-1), size=10, fill_color='red', legend_label='Peak Transient Time')
+    fig.circle(x_data,((peakamps / np.max(np.abs(peakamps)))-0.4)*(num_elements_in_highest_bin), size=7, fill_color='red', legend_label='Peak Transient Time')
 
     fig.xaxis.ticker.num_minor_ticks = 9
     xshift = 0
+    
+    x_coordinate = mean_x - std_x
 
-    text_annotation1 = Label(x=(mean_x-(stddeviations-xshift)*std_x), y=(num_elements_in_highest_bin)*0.94, text="standard deviation = "+f"{std_x:.2f}"+" ms", text_font_size="20pt")
-    text_annotation2 = Label(x=(mean_x-(stddeviations-xshift)*std_x), y=(num_elements_in_highest_bin)*0.88, text="mean = "+f"{mean_x:.2f}"+" ms", text_font_size="20pt")
+    fig.line(x=[x_coordinate,x_coordinate], y=[0,num_elements_in_highest_bin/4], line_width=2, line_dash="dashed", line_color="black", legend_label= 'standard deviation')
+    x_coordinate = mean_x + std_x
+
+    fig.line(x=[x_coordinate,x_coordinate], y=[0,num_elements_in_highest_bin/4], line_width=2, line_dash="dashed", line_color="black")
+    x_coordinate = mean_x
+
+    fig.line(x=[x_coordinate,x_coordinate], y=[0,num_elements_in_highest_bin/4], line_width=2, line_color="black", legend_label= 'mean')
+
+    text_annotation1 = Label(x=0, y=fig.height-100, x_units="screen", y_units='screen', text="standard deviation = "+f"{std_x:.2f}"+" ms", text_font_size="16pt")
+    text_annotation2 = Label(x=0, y=fig.height-125, x_units="screen", y_units='screen', text="mean = "+f"{mean_x:.2f}"+" ms", text_font_size="16pt")
     fig.add_layout(text_annotation1)
     fig.add_layout(text_annotation2)
 
     fig.x_range.start = mean_x-(stddeviations)*std_x
     fig.x_range.end = mean_x+(stddeviations)*std_x
+    fig.legend.location = 'top_right'
 
     return fig
 

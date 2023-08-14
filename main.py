@@ -27,6 +27,7 @@ web_mode = False
 x_wide = ''
 y_high = ''
 bpm_zoom = ''
+klick = ''
 
 parser = argparse.ArgumentParser(description='Map transient times')
 parser.add_argument('-f', '--file', dest='filename', type=str, action='store', help='File to open')
@@ -42,6 +43,7 @@ parser.add_argument('-b', '--bins', dest='nbins', default='0', type=int, action=
 parser.add_argument('-l', '--length', dest='len_series', default='100', type=int, action='store', help='DEFAULT=100 The length of the series of most consistent beats.')
 parser.add_argument('-w', '--web', dest='web_mode', default=False, action='store_true', help='DEFAULT=False Get some width/height values from/ browser objects for graphing. Defaults false.')
 parser.add_argument('-z', '--bpm-zoom', dest='bpm_zoom', default='0', type=float, action='store', help='DEFAULT=0 The target BPM of the Song. Will be scaled to 75% height. 0 means old behaviour. Defaults 0.')
+parser.add_argument('-k', '--klick', dest='klick', default='1', type=int, action='store', help='DEFAULT=1 If the file is smoothed like the klick files we got from martin.')
 
 parser.add_argument('--work-dir', dest='work_dir', action='store', help='Directory structure to work under.' )
 parser.add_argument('-x', '--x-width', dest='x_wide', default='2000', type=int, action='store', help='DEFAULT=2000 Fixed width for graphs.')
@@ -75,8 +77,9 @@ def main():
     full_width = args.x_wide - 15
     plot_height = args.y_high
     bpm_zoom = args.bpm_zoom
+    klick = args.klick
     plot_height = int((plot_height-140)/2)
-
+    
 
     if(nbins == 0):
         nbins = int(1 + (3.322 * np.log(len_series)))
@@ -126,7 +129,7 @@ def main():
 
     for peak in peaks_roughly:
         search_range = 500
-        max_value, max_index = find_maximum_around_peak(np.abs(normalized_amplitude), peak, search_range,npeaks)
+        max_value, max_index = find_maximum_around_peak(np.abs(normalized_amplitude), peak, search_range, npeaks, klick)
         #max_time, max_index, max_value = find_fwhm_center(time,np.abs(normalized_amplitude),peak,search_range)
         if(len(peaks) >0):
             if(peaks[-1] != max_index):
@@ -137,6 +140,7 @@ def main():
             peaktimes.append(time[max_index])
     if(len(peaks) < len_series):
         len_series = len(peaks)
+    #print(len(peaks))
     #print(peaks)
     #print(peaktimes)
     peaks = np.array(peaks)
@@ -163,6 +167,7 @@ def main():
     best_series_times_csv = np.pad(best_series_times,(0,len(peaks)-len_series),'constant')
     best_diffs = diffs[start_of_best_series:start_of_best_series+len_series]
     best_diffs_csv = np.pad(best_diffs,(0,len(peaks)-len_series),'constant')
+    #print(len(best_peaks))
     stdev[0] = np.std(best_diffs)
     stdev[1] = np.std(differences)
     stdev[3] = start_of_best_series
@@ -178,7 +183,7 @@ def main():
 
     fig_center = figure(title='Similarness plot - most consistent Beats', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]', width=int(np.floor(full_width/2)), height=plot_height)
     fig_center.output_backend = 'webgl'
-    center_fig = plot_centered(fig_center,signal,time, best_peaks)
+    center_fig = plot_centered(fig_center,signal,time, best_peaks, norm_envelope)
     logging.info("center_plot figure created")
     
     fig_waveform = figure(title='Consistency/Waveform plot', x_axis_label='Time [s]', y_axis_label='Amplitude [a.u.]', width=full_width, height=plot_height)
@@ -210,7 +215,7 @@ def pad_and_stack_arrays(arrays):
     
     return stacked_array
 
-def plot_centered(fig, signal, time, peaks):
+def plot_centered(fig, signal, time, peaks, norm_envelope):
     zoomval = 400
     log_val = np.exp(zoomval / 100)
 
@@ -218,18 +223,22 @@ def plot_centered(fig, signal, time, peaks):
     segment_width = int(log_val)
     cutoff = 0
     maxheight = 1
-    xs, ys = [], []
+    xs, ys, ys2 = [], [], []
     for peak in peaks:
         start = max(1, peak - segment_width)
         end = min(len(time), peak + segment_width)
         segment = signal[start:end]
+        segment2= norm_envelope[start:end]
         centered_x = time[start:end] - time[peak]
         xs.append( centered_x[segment >cutoff])
         ys.append((segment[segment>cutoff])/signal[peak])
+        #ys2.append((segment2[segment2>cutoff])/norm_envelope[peak])
         newmax = max((segment[segment>cutoff])/signal[peak])
         if(newmax > maxheight):
             maxheight = newmax
     fig.multi_line(xs, ys, alpha=0.5, legend_label='centered Waveform')
+    #fig.multi_line(xs, ys2, alpha=0.5, legend_label='centered Waveform', color='orange')
+
     fig.circle(0, 1, size=10, fill_color='red', legend_label='detected peaks')
     fig.x_range.start = min(centered_x[segment >cutoff])
     fig.x_range.end = max(centered_x[segment >cutoff])
@@ -392,7 +401,7 @@ def plot_stat(fig, peak_times, y_data,nbins):
 
     return fig
 
-def find_maximum_around_peak(data, peak_location, search_range, npeaks):
+def find_maximum_around_peak(data, peak_location, search_range, npeaks, klick):
     """
     Find the maximum value within a specified search range around a given peak location.
 
@@ -405,13 +414,37 @@ def find_maximum_around_peak(data, peak_location, search_range, npeaks):
         float: Maximum value found within the search range.
         int: Index of the maximum value within the search range.
     """
-    numpeaks = int(npeaks)
-    start_index = max(0, peak_location - search_range)
-    end_index = min(len(data), peak_location + search_range + 1)
-    max_values = np.partition(data[start_index:end_index], -numpeaks)[-numpeaks:]  # Get the two highest values
-    max_indices = np.where(np.isin(data[start_index:end_index], max_values))[0] + start_index
-    max_index = min(max_indices)  # Select the leftmost index
-    return max_values[0], max_index
+    if(klick):
+        set_threshold = 0.2
+        array = data
+        rough_peak_position = peak_location
+        start = rough_peak_position
+        while start > 0 and array[start] >= set_threshold:
+            start -= 1
+    
+        # Find the end of the peak
+        end = rough_peak_position
+        while end < len(array) - 1 and array[end] >= set_threshold:
+            end += 1
+    
+        weighted_sum_indices = 0
+        sum_of_values = 0
+        for i in range(start, end + 1):
+            weighted_sum_indices += i * array[i]
+            sum_of_values += array[i]
+    
+        center_of_gravity = weighted_sum_indices / sum_of_values
+        index = int(center_of_gravity)
+        value = array[index]
+        return value,index
+    else:
+        numpeaks = int(npeaks)
+        start_index = max(0, peak_location - search_range)
+        end_index = min(len(data), peak_location + search_range + 1)
+        max_values = np.partition(data[start_index:end_index], -numpeaks)[-numpeaks:]  # Get the two highest values
+        max_indices = np.where(np.isin(data[start_index:end_index], max_values))[0] + start_index
+        max_index = min(max_indices)  # Select the leftmost index
+        return max_values[0], max_index
 
 
 def create_envelope(signal, window_size):

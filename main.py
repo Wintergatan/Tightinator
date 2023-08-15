@@ -7,6 +7,7 @@ from bokeh.layouts import row, column
 from scipy import integrate
 from scipy.io import wavfile
 from scipy.signal import find_peaks, correlate
+from scipy.interpolate import LSQUnivariateSpline
 import argparse
 import logging
 
@@ -34,10 +35,10 @@ parser = argparse.ArgumentParser(description='Map transient times')
 parser.add_argument('-f', '--file', dest='filename', type=str, action='store', help='File to open')
 parser.add_argument('-o', '--out', dest='output_filename', type=str, action='store', help='Filename to write output values to')
 parser.add_argument('-d', '--downsample-rate', dest='downsample_rate', default='8', type=int, action='store', help='DEFAULT=8 Amount by which to reduce resolution. Higher resolution means longer compute.')
-parser.add_argument('-t', '--threshold', dest='thresh', default='0.25', type=float, action='store', help='DEFAULT=0.25 Peak detection threshold, lower is rougher.')
+parser.add_argument('-t', '--threshold', dest='thresh', default='0.1', type=float, action='store', help='DEFAULT=0.25 Peak detection threshold, lower is rougher.')
 parser.add_argument('-c', '--channel', dest='channel', default='1', type=int, action='store', help='DEFAULT=1 Channel to get the Waveform from.')
 parser.add_argument('-en', '--envelope-smoothness', dest='envelope_smoothness', default='100', type=int, action='store', help='DEFAULT=100 Amount of rounding around the envelope.')
-parser.add_argument('-ex', '--exclusion', dest='exclusion', default='30', type=int, action='store', help='DEFAULT=30 Exclusion threshold.')
+parser.add_argument('-ex', '--exclusion', dest='exclusion', default='400', type=int, action='store', help='DEFAULT=30 Exclusion threshold.')
 parser.add_argument('-r', '--precision', dest='float_prec', default='6', type=int, action='store', help='DEFAULT=6 Number of decimal places to round measurements to. Ex: -p 6 = 261.51927438')
 parser.add_argument('-p', '--number-peaks', dest='npeaks', default='3', type=int, action='store', help='DEFAULT=3 Number of valid peaks from which the left-most is selected for better lining up between transients.')
 parser.add_argument('-b', '--bins', dest='nbins', default='0', type=int, action='store', help='DEFAULT=0 Number of bins used for the gaussian curve.')
@@ -120,13 +121,14 @@ def main():
 
     normalized_amplitude = amplitude_data / np.max(np.abs(amplitude_data))
     normalized_amplitude = replace_negatives_with_neighbors(normalized_amplitude)
-    envel = create_envelope(np.abs(normalized_amplitude),envelope_smoothness);
-    norm_envelope = envel / np.max(np.abs(envel))
+    time = np.arange(0, len(normalized_amplitude))/timefactor
+    #envel = create_envelope(time,np.abs(normalized_amplitude),envelope_smoothness)
+    #norm_envelope = envel / np.max(np.abs(envel))
     # Find peak maxima above the threshold
-    peaks_roughly, _ = find_peaks(norm_envelope, prominence=threshold,width = exclusion)
+    peaks_roughly, _ = find_peaks(normalized_amplitude, prominence=threshold,distance = exclusion)
+    #peaks_roughly, _ = find_peaks(norm_envelope, prominence=threshold,distance = exclusion)
     #print(peaks_roughly)
     logging.info("Found {} rough peaks, refining...".format(len(peaks_roughly)))
-    time = np.arange(0, len(normalized_amplitude))/timefactor
     peaks = []
 
     peaktimes = []
@@ -187,7 +189,7 @@ def main():
     logging.info("Saving output values to {}".format(output_filename))
     np_fmt = "%1.{}f".format(float_prec)
     np.savetxt(output_filename, combined_array, delimiter=",", header="PeakTimes[ms],PeakDifferences[ms],BestTimes[ms],BestDifferrences[ms],data", fmt=np_fmt, comments="")
-
+    norm_envelope = []
     fig_center = figure(title='Similarness plot - most consistent Beats', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]', width=int(np.floor(full_width/2)), height=plot_height)
     fig_center.output_backend = 'webgl'
     center_fig = plot_centered(fig_center,signal,time, best_peaks, norm_envelope)
@@ -195,7 +197,7 @@ def main():
     
     fig_waveform = figure(title='Consistency/Waveform plot', x_axis_label='Time [s]', y_axis_label='Amplitude [a.u.]', width=full_width, height=plot_height)
     fig_waveform.output_backend = 'webgl'
-    waveform_fig = plot_waveform(fig_waveform,signal,time,peaks,peaktimes,frame_rate,best_series_times,threshold,bpm_zoom)
+    waveform_fig = plot_waveform(fig_waveform,signal,time,peaks,peaktimes,frame_rate,best_series_times,threshold,bpm_zoom, norm_envelope)
     logging.info("waveform figure created")
 
     fig_stat = figure(title='Statistics plot - most consistent Beats', x_axis_label='Transient Time difference [ms]', y_axis_label='Number of Elements in Bin', width=int(np.floor(full_width/2)), height=plot_height)
@@ -232,11 +234,11 @@ def plot_centered(fig, signal, time, peaks, norm_envelope):
         start = max(1, peak - segment_width)
         end = min(len(time), peak + segment_width)
         segment = signal[start:end]
-        segment2= norm_envelope[start:end]
+        #segment2= norm_envelope[start:end]
         centered_x = time[start:end] - time[peak]
         xs.append( centered_x[segment >cutoff])
         ys.append((segment[segment>cutoff])/max(segment))
-        ys2.append((segment2[segment>cutoff])/max(segment2))
+        #ys2.append((segment2[segment>cutoff])/max(segment2))
         peakheights.append(signal[peak]/max(segment))
         newmax = max((segment[segment>cutoff])/max(segment))
         if(newmax > maxheight):
@@ -279,7 +281,7 @@ def plot_peakdiff(fig, signal, time, peaks):
     return fig
 
     
-def plot_waveform(fig, signal, time, peaks,peaktimes,frame_rate,best_series_times,sensitivity,bpm_zoom):
+def plot_waveform(fig, signal, time, peaks,peaktimes,frame_rate,best_series_times,sensitivity,bpm_zoom,envelope):
     cutoff = 0.01
 
     signal_cut = signal[signal >cutoff]
@@ -327,10 +329,12 @@ def plot_waveform(fig, signal, time, peaks,peaktimes,frame_rate,best_series_time
     #fig.line(x=peak_middles,y=(norm_accel_best*0.10)+0.5, line_color="darkgoldenrod", legend_label= 'acceleration of BPM', line_width=3)
     #fig.line(x=[0,len(time)],y=[0.5,0.5], line_color="black", line_dash="dotted")
     #fig.vbar(x=peak_middles, bottom=peak_bpm + (np.abs(accel)*-1),top=peak_bpm , width=(peak_differences/1000)*0.5, y_range_name="peak_diff_range", color = fill_color, fill_alpha=1, legend_label='BPM Acceleration')
-    fig.line(time_cut, signal_cut, legend_label='Waveform')
     fig.circle(time_xax[peaks], signal[peaks], legend_label='Detected Peaks', color = 'red')
     #accel_start = max(0,diff_mean-zoom_factor*diff_stdev)
     fig.vbar(x=peak_middles, bottom=accel_bottom,top=accel_top , width=(peak_differences/1000)*0.5, y_range_name="peak_diff_range", color = fill_color, fill_alpha=1, legend_label='BPM Acceleration')
+    fig.line(time_cut, signal_cut, legend_label='Waveform')
+    #fig.line(time/1000, envelope, line_color="orange", legend_label='Envelope') 
+    
     x_coordinate = best_series_times[0]/1000
 
     fig.line(x=[x_coordinate,x_coordinate], y=[0,1], line_width=2, line_dash="dashed", line_color="black", legend_label= 'Segment of most consistent Beats')
@@ -495,7 +499,7 @@ def correlator(data, peak_locations, length):
     return np.sum([alignment_shifts,peak_locations], axis=0)
 
 
-def create_envelope(signal, window_size):
+def create_envelope(x_data, signal, window_size):
     """
     Create an envelope for the input signal using a moving average.
 
@@ -507,9 +511,27 @@ def create_envelope(signal, window_size):
         numpy.ndarray: Envelope of the signal.
     """
     absolute_signal = np.abs(signal)
-    envelope = moving_average(absolute_signal, window_size)
+    envelope = moving_average(absolute_signal, 30)
     return envelope
+'''  
+def create_envelope1(x_data,signal, window_size):
+    """
+    Create an envelope for the input signal using a moving average.
 
+    Parameters:
+        signal (numpy.ndarray): Input signal.
+        window_size (int): Size of the moving average window.
+
+    Returns:
+        numpy.ndarray: Envelope of the signal.
+    """
+    smoothing_factor = 0.5
+    print(len(x_data))
+    print(len(signal))
+    spline = LSQUnivariateSpline(x_data, signal, t=None, k=3)
+    envelope = spline(x_data)
+    return envelope
+'''  
 def moving_average(data, window_size):
     """
     Apply a moving average smoothing to the input data.

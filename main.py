@@ -135,8 +135,7 @@ def main():
 
     for peak in peaks_roughly:
         search_range = 50
-        max_index = peakrefiner_maximum(np.abs(normalized_amplitude), peak, search_range)
-        max_index = peakrefiner_center_of_weight(np.abs(normalized_amplitude), max_index, 25)
+        max_index = peakrefiner_center_of_weight(np.abs(normalized_amplitude), peak, search_range)
         #max_time, max_index, max_value = find_fwhm_center(time,np.abs(normalized_amplitude),peak,search_range)
         if(len(peaks) >0):
             if(peaks[-1] != max_index):
@@ -436,10 +435,10 @@ def peakrefiner_center_of_weight(data, peak_location, length):
 
     total_weighted_index = 0
     total_weight = 0
-
+    order = 1.5
     for index, value in enumerate(array):
-        total_weighted_index += index * value
-        total_weight += value
+        total_weighted_index += index * (value)**order
+        total_weight += (value)**order
 
     if total_weight == 0:
         raise ValueError("Array has zero total weight, cannot calculate center of gravity.")

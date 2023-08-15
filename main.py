@@ -29,6 +29,7 @@ y_high = ''
 bpm_zoom = ''
 klick = ''
 
+
 parser = argparse.ArgumentParser(description='Map transient times')
 parser.add_argument('-f', '--file', dest='filename', type=str, action='store', help='File to open')
 parser.add_argument('-o', '--out', dest='output_filename', type=str, action='store', help='Filename to write output values to')
@@ -44,6 +45,7 @@ parser.add_argument('-l', '--length', dest='len_series', default='100', type=int
 parser.add_argument('-w', '--web', dest='web_mode', default=False, action='store_true', help='DEFAULT=False Get some width/height values from/ browser objects for graphing. Defaults false.')
 parser.add_argument('-z', '--bpm-zoom', dest='bpm_zoom', default='0', type=float, action='store', help='DEFAULT=0 The target BPM of the Song. Will be scaled to 75% height. 0 means old behaviour. Defaults 0.')
 parser.add_argument('-k', '--klick', dest='klick', default='1', type=int, action='store', help='DEFAULT=1 If the file is smoothed like the klick files we got from martin.')
+
 
 parser.add_argument('--work-dir', dest='work_dir', action='store', help='Directory structure to work under.' )
 parser.add_argument('-x', '--x-width', dest='x_wide', default='2000', type=int, action='store', help='DEFAULT=2000 Fixed width for graphs.')
@@ -78,8 +80,10 @@ def main():
     plot_height = args.y_high
     bpm_zoom = args.bpm_zoom
     klick = args.klick
+
     plot_height = int((plot_height-140)/2)
     
+
 
     if(nbins == 0):
         nbins = int(1 + (3.322 * np.log(len_series)))

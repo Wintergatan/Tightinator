@@ -6,7 +6,7 @@ from bokeh.models import LinearAxis, Range1d, Label
 from bokeh.layouts import row, column
 from scipy import integrate
 from scipy.io import wavfile
-from scipy.signal import find_peaks
+from scipy.signal import find_peaks, correlate
 import argparse
 import logging
 
@@ -128,8 +128,9 @@ def main():
     peaktimes = []
 
     for peak in peaks_roughly:
-        search_range = 500
-        max_value, max_index = find_maximum_around_peak(np.abs(normalized_amplitude), peak, search_range, npeaks, klick)
+        search_range = 50
+        max_index = peakrefiner_maximum(np.abs(normalized_amplitude), peak, search_range)
+        max_index = peakrefiner_center_of_weight(np.abs(normalized_amplitude), max_index, 25)
         #max_time, max_index, max_value = find_fwhm_center(time,np.abs(normalized_amplitude),peak,search_range)
         if(len(peaks) >0):
             if(peaks[-1] != max_index):
@@ -138,6 +139,8 @@ def main():
         else:
             peaks.append(max_index)
             peaktimes.append(time[max_index])
+    #peaks = correlator(np.abs(normalized_amplitude), peakspre, 50)
+    #peaktimes = time[peaks]
     if(len(peaks) < len_series):
         len_series = len(peaks)
     #print(len(peaks))
@@ -216,14 +219,11 @@ def pad_and_stack_arrays(arrays):
     return stacked_array
 
 def plot_centered(fig, signal, time, peaks, norm_envelope):
-    zoomval = 400
-    log_val = np.exp(zoomval / 100)
-
     # Update centered segments plot here
-    segment_width = int(log_val)
+    segment_width = 50
     cutoff = 0
     maxheight = 1
-    xs, ys, ys2 = [], [], []
+    xs, ys, ys2, peakheights = [], [], [], []
     for peak in peaks:
         start = max(1, peak - segment_width)
         end = min(len(time), peak + segment_width)
@@ -231,15 +231,17 @@ def plot_centered(fig, signal, time, peaks, norm_envelope):
         segment2= norm_envelope[start:end]
         centered_x = time[start:end] - time[peak]
         xs.append( centered_x[segment >cutoff])
-        ys.append((segment[segment>cutoff])/signal[peak])
-        #ys2.append((segment2[segment2>cutoff])/norm_envelope[peak])
-        newmax = max((segment[segment>cutoff])/signal[peak])
+        ys.append((segment[segment>cutoff])/max(segment))
+        ys2.append((segment2[segment>cutoff])/max(segment2))
+        peakheights.append(signal[peak]/max(segment))
+        newmax = max((segment[segment>cutoff])/max(segment))
         if(newmax > maxheight):
             maxheight = newmax
+    #colors = Category20[len(peaks)]
+    
     fig.multi_line(xs, ys, alpha=0.5, legend_label='centered Waveform')
     #fig.multi_line(xs, ys2, alpha=0.5, legend_label='centered Waveform', color='orange')
-
-    fig.circle(0, 1, size=10, fill_color='red', legend_label='detected peaks')
+    fig.circle(0, peakheights, size=10, fill_color='red', legend_label='detected peaks')
     fig.x_range.start = min(centered_x[segment >cutoff])
     fig.x_range.end = max(centered_x[segment >cutoff])
     fig.y_range.start = 0
@@ -361,7 +363,7 @@ def plot_stat(fig, peak_times, y_data,nbins):
     x_gaussian = x_gaussian / area_under_curve
     # Plot the curves
     num_bins = nbins
-    hist, bin_edges = np.histogram(x_data, bins=num_bins)
+    hist, bin_edges = np.histogram(x_data, bins=num_bins, density=True)
     bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
     mean_bins = np.mean(bin_centers)
     std_bins = np.std(bin_centers)
@@ -375,7 +377,7 @@ def plot_stat(fig, peak_times, y_data,nbins):
     fig.extra_y_ranges = {"gaussian_range": Range1d(start=0, end=max(x_gaussian))}
     fig.add_layout(LinearAxis(y_range_name="gaussian_range", axis_label="Probability Density [a.u.]"), 'right')  # Add the right y-axis
     fig.line(x_curve, x_gaussian, y_range_name="gaussian_range", color= 'red', line_width = 2.5, legend_label='Gaussian distribution')
-    fig.circle(x_data,((peakamps / np.max(np.abs(peakamps)))-0.4)*(num_elements_in_highest_bin), size=7, fill_color='red', legend_label='Peak Transient Time')
+    fig.circle(x_data,((peakamps / np.max(np.abs(peakamps))))*(num_elements_in_highest_bin)*0.95, size=7, fill_color='red', legend_label='Peak Transient Time')
 
     fig.xaxis.ticker.num_minor_ticks = 9
     xshift = 0
@@ -401,50 +403,92 @@ def plot_stat(fig, peak_times, y_data,nbins):
 
     return fig
 
-def find_maximum_around_peak(data, peak_location, search_range, npeaks, klick):
-    """
-    Find the maximum value within a specified search range around a given peak location.
+def peakrefiner_maximum(data, peak_location, length):
+    center_index = peak_location
+    array = data
+    search_range = length
 
-    Parameters:
-        data (numpy.ndarray): Input data.
-        peak_location (int): Index of the located peak.
-        search_range (int): Number of indices to search around the peak location.
+    
+    max_gradient = float('-inf')
+    max_gradient_index = -1
+    for i in range(center_index - search_range, center_index + search_range + 1):     
+        gradient = array[i]
+        
+        if gradient > max_gradient:
+            max_gradient = gradient
+            max_gradient_index = i
+    
+    return max_gradient_index
+    
+def peakrefiner_center_of_weight(data, peak_location, length):
+    center_index = peak_location
+    search_range = length
+    search_range_indices = range(center_index - search_range, center_index + search_range + 1)
+    array = data[search_range_indices]
 
-    Returns:
-        float: Maximum value found within the search range.
-        int: Index of the maximum value within the search range.
-    """
-    if(klick):
-        set_threshold = 0.2
-        array = data
-        rough_peak_position = peak_location
-        start = rough_peak_position
-        while start > 0 and array[start] >= set_threshold:
-            start -= 1
+    total_weighted_index = 0
+    total_weight = 0
+
+    for index, value in enumerate(array):
+        total_weighted_index += index * value
+        total_weight += value
+
+    if total_weight == 0:
+        raise ValueError("Array has zero total weight, cannot calculate center of gravity.")
+
+    cog_index = int(total_weighted_index / total_weight)
+    return search_range_indices[cog_index]
     
-        # Find the end of the peak
-        end = rough_peak_position
-        while end < len(array) - 1 and array[end] >= set_threshold:
-            end += 1
+def peakrefiner_leftmost(data, peak_location, length):
+    center_index = peak_location
+    search_range = length
+    search_range_indices = range(center_index - search_range, center_index + search_range + 1)
+    array = data[search_range_indices]
+   
+    # Find the indices of the three highest points in descending order
+    sorted_indices = sorted(range(len(array)), key=lambda i: array[i], reverse=True)
+    highest_indices = sorted_indices[:2]
+
+    # Return the index of the leftmost highest point
+    leftmost_index = min(highest_indices)
+    return search_range_indices[leftmost_index]
     
-        weighted_sum_indices = 0
-        sum_of_values = 0
-        for i in range(start, end + 1):
-            weighted_sum_indices += i * array[i]
-            sum_of_values += array[i]
     
-        center_of_gravity = weighted_sum_indices / sum_of_values
-        index = int(center_of_gravity)
-        value = array[index]
-        return value,index
-    else:
-        numpeaks = int(npeaks)
-        start_index = max(0, peak_location - search_range)
-        end_index = min(len(data), peak_location + search_range + 1)
-        max_values = np.partition(data[start_index:end_index], -numpeaks)[-numpeaks:]  # Get the two highest values
-        max_indices = np.where(np.isin(data[start_index:end_index], max_values))[0] + start_index
-        max_index = min(max_indices)  # Select the leftmost index
-        return max_values[0], max_index
+def peakrefiner_rightmost(data, peak_location, length):
+    center_index = peak_location
+    search_range = length
+    search_range_indices = range(center_index - search_range, center_index + search_range + 1)
+    array = data[search_range_indices]
+   
+    # Find the indices of the three highest points in descending order
+    sorted_indices = sorted(range(len(array)), key=lambda i: array[i], reverse=True)
+    highest_indices = sorted_indices[:2]
+
+    # Return the index of the leftmost highest point
+    leftmost_index = max(highest_indices)
+    return search_range_indices[leftmost_index]
+
+
+def correlator(data, peak_locations, length):
+    segments = []
+    indexes = peak_locations
+    range_value = length
+    for idx in indexes:
+        if idx < range_value or idx >= len(data) - range_value:
+            continue
+        
+        segment = data[idx - range_value : idx + range_value + 1]
+        segments.append(segment)
+    alignment_shifts = []
+    target_segment = segments[10]
+    for segment in segments:
+        segment_n = segment / np.linalg.norm(segment)
+        target_segment_n = target_segment / np.linalg.norm(target_segment)
+        cross_corr = correlate(target_segment_n, segment_n, mode='full')
+        max_corr_index = np.argmax(cross_corr)
+        shift = max_corr_index - len(target_segment) + 1
+        alignment_shifts.append(shift)
+    return np.sum([alignment_shifts,peak_locations], axis=0)
 
 
 def create_envelope(signal, window_size):

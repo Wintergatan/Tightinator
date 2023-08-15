@@ -199,7 +199,7 @@ def main():
     waveform_fig = plot_waveform(fig_waveform,signal,time,peaks,peaktimes,frame_rate,best_series_times,threshold,bpm_zoom, norm_envelope)
     logging.info("waveform figure created")
 
-    fig_stat = figure(title='Statistics plot - most consistent Beats', x_axis_label='Transient Time difference [ms]', y_axis_label='Number of Elements in Bin', width=int(np.floor(full_width/2)), height=plot_height)
+    fig_stat = figure(title='Statistics plot - most consistent Beats', x_axis_label='Transient Time difference [ms]', y_axis_label='Probability density[1/ms]', width=int(np.floor(full_width/2)), height=plot_height)
     fig_stat.output_backend = 'webgl'
     stat_fig = plot_stat(fig_stat,best_series_times,best_series_amps,nbins)
     logging.info("stat figure created")
@@ -377,14 +377,14 @@ def plot_stat(fig, peak_times, y_data,nbins):
     binsize=bin_centers[1]-bin_centers[0]
     max_count_index = np.argmax(hist)
     num_elements_in_highest_bin = hist[max_count_index]
-    fig.quad(top=hist, bottom=0, left=bin_edges[:-1], right=bin_edges[1:], fill_color="blue", line_color="white", alpha=0.7, legend_label='Number of Elements per Bin')
+    fig.quad(top=hist, bottom=0, left=bin_edges[:-1], right=bin_edges[1:], fill_color="blue", line_color="white", alpha=0.7, legend_label='Probability density')
     row_spacing = max(x_gaussian)/(num_elements_in_highest_bin)
     fig.y_range = Range1d(start=0, end=num_elements_in_highest_bin)
     peakamps =y_data[1:]
-    fig.extra_y_ranges = {"gaussian_range": Range1d(start=0, end=max(x_gaussian))}
-    fig.add_layout(LinearAxis(y_range_name="gaussian_range", axis_label="Probability Density [a.u.]"), 'right')  # Add the right y-axis
-    fig.line(x_curve, x_gaussian, y_range_name="gaussian_range", color= 'red', line_width = 2.5, legend_label='Gaussian distribution')
-    fig.circle(x_data,((peakamps / np.max(np.abs(peakamps))))*(num_elements_in_highest_bin)*0.95, size=7, fill_color='red', legend_label='Peak Transient Time')
+    fig.extra_y_ranges = {"amplitude_range": Range1d(start=0, end=1)}
+    fig.add_layout(LinearAxis(y_range_name="amplitude_range", axis_label="Amplitude [a.u.]"), 'right')  # Add the right y-axis
+    fig.line(x_curve, x_gaussian, color= 'red', line_width = 2.5, legend_label='Gaussian distribution')
+    fig.circle(x_data,peakamps, size=7, fill_color='red', legend_label='Peak Transient Time',y_range_name="amplitude_range")
 
     fig.xaxis.ticker.num_minor_ticks = 9
     xshift = 0

@@ -35,17 +35,17 @@ parser = argparse.ArgumentParser(description='Map transient times')
 parser.add_argument('-f', '--file', dest='filename', type=str, action='store', help='File to open')
 parser.add_argument('-o', '--out', dest='output_filename', type=str, action='store', help='Filename to write output values to')
 parser.add_argument('-d', '--downsample-rate', dest='downsample_rate', default='8', type=int, action='store', help='DEFAULT=8 Amount by which to reduce resolution. Higher resolution means longer compute.')
-parser.add_argument('-t', '--threshold', dest='thresh', default='0.1', type=float, action='store', help='DEFAULT=0.25 Peak detection threshold, lower is rougher.')
+parser.add_argument('-t', '--threshold', dest='thresh', default='0.1', type=float, action='store', help='DEFAULT=0.1 Peak detection threshold, gets problematic below 0.1. Might miss peaks if to high, misdetect non peaks if too low.')
 parser.add_argument('-c', '--channel', dest='channel', default='1', type=int, action='store', help='DEFAULT=1 Channel to get the Waveform from.')
-parser.add_argument('-en', '--envelope-smoothness', dest='envelope_smoothness', default='100', type=int, action='store', help='DEFAULT=100 Amount of rounding around the envelope.')
-parser.add_argument('-ex', '--exclusion', dest='exclusion', default='400', type=int, action='store', help='DEFAULT=30 Exclusion threshold.')
+parser.add_argument('-en', '--envelope-smoothness', dest='envelope_smoothness', default='100', type=int, action='store', help='DEFAULT=100 Currently unused.') #unused, i would keep it if the need arises
+parser.add_argument('-ex', '--exclusion', dest='exclusion', default='3200', type=int, action='store', help='DEFAULT=3200 Minimum distance between Peaks in Samples.')
 parser.add_argument('-r', '--precision', dest='float_prec', default='6', type=int, action='store', help='DEFAULT=6 Number of decimal places to round measurements to. Ex: -p 6 = 261.51927438')
-parser.add_argument('-p', '--number-peaks', dest='npeaks', default='3', type=int, action='store', help='DEFAULT=3 Number of valid peaks from which the left-most is selected for better lining up between transients.')
-parser.add_argument('-b', '--bins', dest='nbins', default='0', type=int, action='store', help='DEFAULT=0 Number of bins used for the gaussian curve.')
+parser.add_argument('-p', '--number-peaks', dest='npeaks', default='3', type=int, action='store', help='DEFAULT=3 Currently unused') # unused
+parser.add_argument('-b', '--bins', dest='nbins', default='0', type=int, action='store', help='DEFAULT=0 Number of bins used for the gaussian curve.') # used, but could be removed
 parser.add_argument('-l', '--length', dest='len_series', default='100', type=int, action='store', help='DEFAULT=100 The length of the series of most consistent beats.')
 parser.add_argument('-w', '--web', dest='web_mode', default=False, action='store_true', help='DEFAULT=False Get some width/height values from/ browser objects for graphing. Defaults false.')
 parser.add_argument('-z', '--bpm-zoom', dest='bpm_zoom', default='0', type=float, action='store', help='DEFAULT=0 The target BPM of the Song. Will be scaled to 75% height. 0 means old behaviour. Defaults 0.')
-parser.add_argument('-k', '--klick', dest='klick', default='1', type=int, action='store', help='DEFAULT=1 If the file is smoothed like the klick files we got from martin.')
+parser.add_argument('-k', '--klick', dest='klick', default='1', type=int, action='store', help='DEFAULT=1 Currently unused.')#could be removed
 
 
 parser.add_argument('--work-dir', dest='work_dir', action='store', help='Directory structure to work under.' )
@@ -68,8 +68,8 @@ def main():
     # User configuration values
     filename = args.filename
     envelope_smoothness = args.envelope_smoothness
-    exclusion = args.exclusion
     downsamplerate = args.downsample_rate
+    exclusion = int(args.exclusion / downsamplerate)
     #output_filename = args.output_filename
     threshold = args.thresh
     channel = args.channel

@@ -139,5 +139,5 @@ def create_app(logger_override=None):
     return app
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=(os.getenv("DEBUG_MODE", "False") == "True"))
 

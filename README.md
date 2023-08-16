@@ -1,6 +1,6 @@
 # Wintergatan Timing Data Analysis
 
-The community has long since clamoured for automatic peak detection and generation of timing data for the Wintergata Marble Machine project. An offhand comment during the 2023 Community Meetup colalesced into this project.
+The community has long since clamoured for automatic peak detection and generation of timing data for the Wintergatan Marble Machine project. An offhand comment during the 2023 Community Meetup colalesced into this project.
 
 ## View the live version
 
@@ -58,6 +58,38 @@ This project is written in Python 3, and uses pip to manage dependencies.
 To install these libraries, run the following command:
 ```bash
 pip install -r requirements.txt
+```
+
+### Running with Docker
+This project comes with a [Dockerfile](./Dockerfile) for the webapp implementation. There is also a [compose file](./docker-compose.yml) and a [shell script](./docker.sh) for building and running the container in one go with `docker-compose`. If the container successfuly launches, you should be able to access it at http://127.0.0.1:5000 .
+
+#### Standalone:
+```sh
+## Build and tag.
+docker build . -t yanfett/wintergatan-data-analysis:latest
+
+## Run the program.
+# --network host      Use the host machine's loopback network. (127.0.0.1)
+# -d                  Detach, runs the container in the background.
+# -e DEBUG_MODE=True  Debug mode for the webapp. Remove or set to "False" to turn off.
+docker run --network host -d -e DEBUG_MODE=True yanfett/wintergatan-data-analysis:latest
+
+## Stop the program
+docker stop <container name>
+```
+
+#### Compose:
+```sh
+## Build using the composefile.
+docker compose build
+
+## Run the program.
+# -d                  Detach, runs the container in the background.
+# -e DEBUG_MODE=True  Debug mode for the webapp. Remove or set to "False" to turn off.
+docker compose run -d -e DEBUG_MODE=True wintergatan-data-analysis
+
+## Stop the program
+docker compose stop wintergatan-data-analysis
 ```
 
 ## Contributing

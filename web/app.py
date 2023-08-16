@@ -44,13 +44,11 @@ def run(uuid):
 
     bpm_zoom = str(request.form['bpmZoom'])
     threshold = str(request.form['threshold'])
-    roundness = str(request.form['roundness'])
+    #roundness = str(request.form['roundness'])
     sample_size = str(request.form['sample'])
     rounding = str(request.form['rounding'])
     channel = str(request.form['channelNumber'])
     downsample_rate = str(request.form['downsampleRate'])
-    num_buckets = str(request.form['numBuckets'])
-    num_peaks = str(request.form['numPeaks'])
 
     debug_command = [
         'python3',
@@ -61,11 +59,8 @@ def run(uuid):
         '-d', downsample_rate,
         '-z', bpm_zoom,
         '-t', threshold,
-        '-en', roundness,
         '-l', sample_size,
         '-r', rounding,
-        '-p', num_peaks,
-        '-b', num_buckets,
         '-w',
         '-v'
     ]

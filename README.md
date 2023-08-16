@@ -59,6 +59,7 @@ To install these libraries, run the following command:
 ```bash
 pip install -r requirements.txt
 ```
+
 ### Running with Docker
 This project comes with a [Dockerfile](./Dockerfile) for the webapp implementation. There is also a [compose file](./docker-compose.yml) and a [shell script](./docker.sh) for building and running the container in one go with `docker-compose`. If the container successfuly launches, you should be able to access it at http://127.0.0.1:5000 .
 

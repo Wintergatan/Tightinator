@@ -1,6 +1,6 @@
 # Wintergatan Timing Data Analysis
 
-The community has long since clamoured for automatic peak detection and generation of timing data for the Wintergata Marble Machine project. An offhand comment during the 2023 Community Meetup colalesced into this project.
+The community has long since clamoured for automatic peak detection and generation of timing data for the Wintergatan Marble Machine project. An offhand comment during the 2023 Community Meetup colalesced into this project.
 
 ## View the live version
 

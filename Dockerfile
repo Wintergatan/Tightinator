@@ -1,12 +1,10 @@
 FROM python:latest
 
-# Install dependencies
-RUN pip3 install \
-	bokeh \
-	numpy \
-	argparse \
-	scipy \
-	flask
+WORKDIR /opt
+
+# Add requirements and install dependencies
+COPY requirements.txt /opt/requirements.txt
+RUN pip3 install -r requirements.txt
 
 # Copy files
 COPY web /opt/web/

@@ -6,7 +6,8 @@ from bokeh.models import LinearAxis, Range1d, Label
 from bokeh.layouts import row, column
 from scipy import integrate
 from scipy.io import wavfile
-from scipy.signal import find_peaks
+from scipy.signal import find_peaks, correlate
+from scipy.interpolate import LSQUnivariateSpline
 import argparse
 import logging
 
@@ -15,34 +16,36 @@ output_filename = ''
 downsample_rate = ''
 thresh = ''
 channel = ''
-envelope_smoothness = ''
+#envelope_smoothness = ''
 exclusion = ''
 float_prec = ''
 verbose = ''
-npeaks = ''
-nbins = ''
+#npeaks = ''
+#nbins = ''
 len_series = ''
 work_dir = ''
 web_mode = False
 x_wide = ''
 y_high = ''
 bpm_zoom = ''
+#klick = ''
+
 
 parser = argparse.ArgumentParser(description='Map transient times')
 parser.add_argument('-f', '--file', dest='filename', type=str, action='store', help='File to open')
 parser.add_argument('-o', '--out', dest='output_filename', type=str, action='store', help='Filename to write output values to')
 parser.add_argument('-d', '--downsample-rate', dest='downsample_rate', default='8', type=int, action='store', help='DEFAULT=8 Amount by which to reduce resolution. Higher resolution means longer compute.')
-parser.add_argument('-t', '--threshold', dest='thresh', default='0.25', type=float, action='store', help='DEFAULT=0.25 Peak detection threshold, lower is rougher.')
-parser.add_argument('-c', '--channel', dest='channel', default='1', type=int, action='store', help='DEFAULT=1 Channel to get the Waveform from.')
-parser.add_argument('-en', '--envelope-smoothness', dest='envelope_smoothness', default='100', type=int, action='store', help='DEFAULT=100 Amount of rounding around the envelope.')
-parser.add_argument('-ex', '--exclusion', dest='exclusion', default='30', type=int, action='store', help='DEFAULT=30 Exclusion threshold.')
+parser.add_argument('-t', '--threshold', dest='thresh', default='0.1', type=float, action='store', help='DEFAULT=0.1 Peak detection threshold. Works best 0.1 and above. Setting too high/low can cause misdetection.')
+parser.add_argument('-c', '--channel', dest='channel', default='1', type=int, action='store', help='DEFAULT=1 Channel to get the waveform from.')
+#parser.add_argument('-en', '--envelope-smoothness', dest='envelope_smoothness', default='100', type=int, action='store', help='DEFAULT=100 Currently unused.') #unused, i would keep it if the need arises
+parser.add_argument('-ex', '--exclusion', dest='exclusion', default='3200', type=int, action='store', help='DEFAULT=3200 Minimum distance between peaks.')
 parser.add_argument('-r', '--precision', dest='float_prec', default='6', type=int, action='store', help='DEFAULT=6 Number of decimal places to round measurements to. Ex: -p 6 = 261.51927438')
-parser.add_argument('-p', '--number-peaks', dest='npeaks', default='3', type=int, action='store', help='DEFAULT=3 Number of valid peaks from which the left-most is selected for better lining up between transients.')
-parser.add_argument('-b', '--bins', dest='nbins', default='0', type=int, action='store', help='DEFAULT=0 Number of bins used for the gaussian curve.')
+#parser.add_argument('-p', '--number-peaks', dest='npeaks', default='3', type=int, action='store', help='DEFAULT=3 Currently unused') # unused
+#parser.add_argument('-b', '--bins', dest='nbins', default='0', type=int, action='store', help='DEFAULT=0 Number of bins used for the gaussian curve.') # used, but could be removed
 parser.add_argument('-l', '--length', dest='len_series', default='100', type=int, action='store', help='DEFAULT=100 The length of the series of most consistent beats.')
 parser.add_argument('-w', '--web', dest='web_mode', default=False, action='store_true', help='DEFAULT=False Get some width/height values from/ browser objects for graphing. Defaults false.')
-parser.add_argument('-z', '--bpm-zoom', dest='bpm_zoom', default='0', type=float, action='store', help='DEFAULT=0 The target BPM of the Song. Will be scaled to 75% height. 0 means old behaviour. Defaults 0.')
-
+parser.add_argument('-z', '--bpm-zoom', dest='bpm_zoom', default='0', type=float, action='store', help='DEFAULT=0 The target BPM of the song. Will be scaled to 75%% height. Use 0 for auto.')
+#parser.add_argument('-k', '--klick', dest='klick', default='1', type=int, action='store', help='DEFAULT=1 Currently unused.')#could be removed
 parser.add_argument('--work-dir', dest='work_dir', action='store', help='Directory structure to work under.' )
 parser.add_argument('-x', '--x-width', dest='x_wide', default='2000', type=int, action='store', help='DEFAULT=2000 Fixed width for graphs.')
 parser.add_argument('-y', '--plot-height', dest='y_high', default='1340', type=int, action='store', help='DEFAULT=600 Fixed height for single plot.')
@@ -62,24 +65,24 @@ def main():
 
     # User configuration values
     filename = args.filename
-    envelope_smoothness = args.envelope_smoothness
-    exclusion = args.exclusion
+    #envelope_smoothness = args.envelope_smoothness
     downsamplerate = args.downsample_rate
+    exclusion = int(args.exclusion / downsamplerate)
     #output_filename = args.output_filename
     threshold = args.thresh
     channel = args.channel
     float_prec = args.float_prec
-    nbins = args.nbins
-    npeaks = args.npeaks
+    #nbins = args.nbins
+    #npeaks = args.npeaks
     len_series = args.len_series
     full_width = args.x_wide - 15
     plot_height = args.y_high
     bpm_zoom = args.bpm_zoom
+    #klick = args.klick
+
     plot_height = int((plot_height-140)/2)
 
-
-    if(nbins == 0):
-        nbins = int(1 + (3.322 * np.log(len_series)))
+    nbins = int(1 + (3.322 * np.log(len_series)))
 
     # If output_filename argument not set use the uploaded filename + .csv
     if not args.output_filename:
@@ -113,20 +116,21 @@ def main():
 
     normalized_amplitude = amplitude_data / np.max(np.abs(amplitude_data))
     normalized_amplitude = replace_negatives_with_neighbors(normalized_amplitude)
-    envel = create_envelope(np.abs(normalized_amplitude),envelope_smoothness);
-    norm_envelope = envel / np.max(np.abs(envel))
+    time = np.arange(0, len(normalized_amplitude))/timefactor
+    #envel = create_envelope(time,np.abs(normalized_amplitude),envelope_smoothness)
+    #norm_envelope = envel / np.max(np.abs(envel))
     # Find peak maxima above the threshold
-    peaks_roughly, _ = find_peaks(norm_envelope, prominence=threshold,width = exclusion)
+    peaks_roughly, _ = find_peaks(normalized_amplitude, prominence=threshold,distance = exclusion)
+    #peaks_roughly, _ = find_peaks(norm_envelope, prominence=threshold,distance = exclusion)
     #print(peaks_roughly)
     logging.info("Found {} rough peaks, refining...".format(len(peaks_roughly)))
-    time = np.arange(0, len(normalized_amplitude))/timefactor
     peaks = []
 
     peaktimes = []
 
     for peak in peaks_roughly:
-        search_range = 500
-        max_value, max_index = find_maximum_around_peak(np.abs(normalized_amplitude), peak, search_range,npeaks)
+        search_range = 50
+        max_index = peakrefiner_center_of_weight(np.abs(normalized_amplitude), peak, search_range)
         #max_time, max_index, max_value = find_fwhm_center(time,np.abs(normalized_amplitude),peak,search_range)
         if(len(peaks) >0):
             if(peaks[-1] != max_index):
@@ -135,8 +139,11 @@ def main():
         else:
             peaks.append(max_index)
             peaktimes.append(time[max_index])
+    #peaks = correlator(np.abs(normalized_amplitude), peakspre, 50)
+    #peaktimes = time[peaks]
     if(len(peaks) < len_series):
         len_series = len(peaks)
+    #print(len(peaks))
     #print(peaks)
     #print(peaktimes)
     peaks = np.array(peaks)
@@ -163,6 +170,7 @@ def main():
     best_series_times_csv = np.pad(best_series_times,(0,len(peaks)-len_series),'constant')
     best_diffs = diffs[start_of_best_series:start_of_best_series+len_series]
     best_diffs_csv = np.pad(best_diffs,(0,len(peaks)-len_series),'constant')
+    #print(len(best_peaks))
     stdev[0] = np.std(best_diffs)
     stdev[1] = np.std(differences)
     stdev[3] = start_of_best_series
@@ -175,18 +183,18 @@ def main():
     logging.info("Saving output values to {}".format(output_filename))
     np_fmt = "%1.{}f".format(float_prec)
     np.savetxt(output_filename, combined_array, delimiter=",", header="PeakTimes[ms],PeakDifferences[ms],BestTimes[ms],BestDifferrences[ms],data", fmt=np_fmt, comments="")
-
+    norm_envelope = []
     fig_center = figure(title='Similarness plot - most consistent Beats', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]', width=int(np.floor(full_width/2)), height=plot_height)
     fig_center.output_backend = 'webgl'
-    center_fig = plot_centered(fig_center,signal,time, best_peaks)
+    center_fig = plot_centered(fig_center,signal,time, best_peaks, norm_envelope)
     logging.info("center_plot figure created")
     
     fig_waveform = figure(title='Consistency/Waveform plot', x_axis_label='Time [s]', y_axis_label='Amplitude [a.u.]', width=full_width, height=plot_height)
     fig_waveform.output_backend = 'webgl'
-    waveform_fig = plot_waveform(fig_waveform,signal,time,peaks,peaktimes,frame_rate,best_series_times,threshold,bpm_zoom)
+    waveform_fig = plot_waveform(fig_waveform,signal,time,peaks,peaktimes,frame_rate,best_series_times,threshold,bpm_zoom, norm_envelope)
     logging.info("waveform figure created")
 
-    fig_stat = figure(title='Statistics plot - most consistent Beats', x_axis_label='Transient Time difference [ms]', y_axis_label='Number of Elements in Bin', width=int(np.floor(full_width/2)), height=plot_height)
+    fig_stat = figure(title='Statistics plot - most consistent Beats', x_axis_label='Transient Time difference [ms]', y_axis_label='Probability density[1/ms]', width=int(np.floor(full_width/2)), height=plot_height)
     fig_stat.output_backend = 'webgl'
     stat_fig = plot_stat(fig_stat,best_series_times,best_series_amps,nbins)
     logging.info("stat figure created")
@@ -210,27 +218,30 @@ def pad_and_stack_arrays(arrays):
     
     return stacked_array
 
-def plot_centered(fig, signal, time, peaks):
-    zoomval = 400
-    log_val = np.exp(zoomval / 100)
-
+def plot_centered(fig, signal, time, peaks, norm_envelope):
     # Update centered segments plot here
-    segment_width = int(log_val)
+    segment_width = 50
     cutoff = 0
     maxheight = 1
-    xs, ys = [], []
+    xs, ys, ys2, peakheights = [], [], [], []
     for peak in peaks:
         start = max(1, peak - segment_width)
         end = min(len(time), peak + segment_width)
         segment = signal[start:end]
+        #segment2= norm_envelope[start:end]
         centered_x = time[start:end] - time[peak]
         xs.append( centered_x[segment >cutoff])
-        ys.append((segment[segment>cutoff])/signal[peak])
-        newmax = max((segment[segment>cutoff])/signal[peak])
+        ys.append((segment[segment>cutoff])/max(segment))
+        #ys2.append((segment2[segment>cutoff])/max(segment2))
+        peakheights.append(signal[peak]/max(segment))
+        newmax = max((segment[segment>cutoff])/max(segment))
         if(newmax > maxheight):
             maxheight = newmax
+    #colors = Category20[len(peaks)]
+    
     fig.multi_line(xs, ys, alpha=0.5, legend_label='centered Waveform')
-    fig.circle(0, 1, size=10, fill_color='red', legend_label='detected peaks')
+    #fig.multi_line(xs, ys2, alpha=0.5, legend_label='centered Waveform', color='orange')
+    fig.circle(0, peakheights, size=10, fill_color='red', legend_label='detected peaks')
     fig.x_range.start = min(centered_x[segment >cutoff])
     fig.x_range.end = max(centered_x[segment >cutoff])
     fig.y_range.start = 0
@@ -264,7 +275,7 @@ def plot_peakdiff(fig, signal, time, peaks):
     return fig
 
     
-def plot_waveform(fig, signal, time, peaks,peaktimes,frame_rate,best_series_times,sensitivity,bpm_zoom):
+def plot_waveform(fig, signal, time, peaks,peaktimes,frame_rate,best_series_times,sensitivity,bpm_zoom,envelope):
     cutoff = 0.01
 
     signal_cut = signal[signal >cutoff]
@@ -312,10 +323,12 @@ def plot_waveform(fig, signal, time, peaks,peaktimes,frame_rate,best_series_time
     #fig.line(x=peak_middles,y=(norm_accel_best*0.10)+0.5, line_color="darkgoldenrod", legend_label= 'acceleration of BPM', line_width=3)
     #fig.line(x=[0,len(time)],y=[0.5,0.5], line_color="black", line_dash="dotted")
     #fig.vbar(x=peak_middles, bottom=peak_bpm + (np.abs(accel)*-1),top=peak_bpm , width=(peak_differences/1000)*0.5, y_range_name="peak_diff_range", color = fill_color, fill_alpha=1, legend_label='BPM Acceleration')
-    fig.line(time_cut, signal_cut, legend_label='Waveform')
     fig.circle(time_xax[peaks], signal[peaks], legend_label='Detected Peaks', color = 'red')
     #accel_start = max(0,diff_mean-zoom_factor*diff_stdev)
     fig.vbar(x=peak_middles, bottom=accel_bottom,top=accel_top , width=(peak_differences/1000)*0.5, y_range_name="peak_diff_range", color = fill_color, fill_alpha=1, legend_label='BPM Acceleration')
+    fig.line(time_cut, signal_cut, legend_label='Waveform')
+    #fig.line(time/1000, envelope, line_color="orange", legend_label='Envelope') 
+    
     x_coordinate = best_series_times[0]/1000
 
     fig.line(x=[x_coordinate,x_coordinate], y=[0,1], line_width=2, line_dash="dashed", line_color="black", legend_label= 'Segment of most consistent Beats')
@@ -335,6 +348,8 @@ def plot_waveform(fig, signal, time, peaks,peaktimes,frame_rate,best_series_time
     return fig
 
 def plot_stat(fig, peak_times, y_data,nbins):
+    if(nbins == 0):
+        nbins = int(1 + (3.322 * np.log(len_series)))
     x_data = np.diff(peak_times)
     mean_x = np.mean(x_data)
     std_x = np.std(x_data)
@@ -346,66 +361,139 @@ def plot_stat(fig, peak_times, y_data,nbins):
 
     # Calculate the unnormalized Gaussian values
     x_gaussian = np.exp(-0.5 * ((x_curve - mean_x) / std_x)**2) / (std_x * np.sqrt(2 * np.pi))
-
-    #x_gaussian = x_gaussian * x_normalization_factor  # Corrected line
     area_under_curve= np.trapz(x_gaussian, x_curve)
-    #y_gaussian = np.exp(-0.5 * ((y_curve - mean_y) / std_y)**2) / (std_y * np.sqrt(2 * np.pi))
     x_gaussian = x_gaussian / area_under_curve
     # Plot the curves
     num_bins = nbins
-    hist, bin_edges = np.histogram(x_data, bins=num_bins)
+    hist, bin_edges = np.histogram(x_data, bins=num_bins, density=True)
     bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
     mean_bins = np.mean(bin_centers)
     std_bins = np.std(bin_centers)
     binsize=bin_centers[1]-bin_centers[0]
     max_count_index = np.argmax(hist)
     num_elements_in_highest_bin = hist[max_count_index]
-    fig.quad(top=hist, bottom=0, left=bin_edges[:-1], right=bin_edges[1:], fill_color="blue", line_color="white", alpha=0.7, legend_label='Number of Elements per Bin')
+    fig.quad(top=hist, bottom=0, left=bin_edges[:-1], right=bin_edges[1:], fill_color="blue", line_color="white", alpha=0.7, legend_label='Probability density')
     row_spacing = max(x_gaussian)/(num_elements_in_highest_bin)
     fig.y_range = Range1d(start=0, end=num_elements_in_highest_bin)
     peakamps =y_data[1:]
-
-    fig.extra_y_ranges = {"gaussian_range": Range1d(start=0, end=max(x_gaussian))}
-    fig.add_layout(LinearAxis(y_range_name="gaussian_range", axis_label="Probability Density [a.u.]"), 'right')  # Add the right y-axis
-    fig.line(x_curve, x_gaussian, y_range_name="gaussian_range", color= 'red', line_width = 2.5, legend_label='Gaussian distribution')
-    fig.circle(x_data,(peakamps / np.max(np.abs(peakamps)))*(num_elements_in_highest_bin-1), size=10, fill_color='red', legend_label='Peak Transient Time')
+    fig.extra_y_ranges = {"amplitude_range": Range1d(start=0, end=1)}
+    fig.add_layout(LinearAxis(y_range_name="amplitude_range", axis_label="Amplitude [a.u.]"), 'right')  # Add the right y-axis
+    fig.line(x_curve, x_gaussian, color= 'red', line_width = 2.5, legend_label='Gaussian distribution')
+    fig.circle(x_data,peakamps, size=7, fill_color='red', legend_label='Peak Transient Time',y_range_name="amplitude_range")
 
     fig.xaxis.ticker.num_minor_ticks = 9
     xshift = 0
+    
+    x_coordinate = mean_x - std_x
 
-    text_annotation1 = Label(x=(mean_x-(stddeviations-xshift)*std_x), y=(num_elements_in_highest_bin)*0.94, text="standard deviation = "+f"{std_x:.2f}"+" ms", text_font_size="20pt")
-    text_annotation2 = Label(x=(mean_x-(stddeviations-xshift)*std_x), y=(num_elements_in_highest_bin)*0.88, text="mean = "+f"{mean_x:.2f}"+" ms", text_font_size="20pt")
+    fig.line(x=[x_coordinate,x_coordinate], y=[0,num_elements_in_highest_bin/4], line_width=2, line_dash="dashed", line_color="black", legend_label= 'standard deviation')
+    x_coordinate = mean_x + std_x
+
+    fig.line(x=[x_coordinate,x_coordinate], y=[0,num_elements_in_highest_bin/4], line_width=2, line_dash="dashed", line_color="black")
+    x_coordinate = mean_x
+
+    fig.line(x=[x_coordinate,x_coordinate], y=[0,num_elements_in_highest_bin/4], line_width=2, line_color="black", legend_label= 'mean')
+
+    text_annotation1 = Label(x=0, y=fig.height-100, x_units="screen", y_units='screen', text="standard deviation = "+f"{std_x:.2f}"+" ms", text_font_size="16pt")
+    text_annotation2 = Label(x=0, y=fig.height-125, x_units="screen", y_units='screen', text="mean = "+f"{mean_x:.2f}"+" ms", text_font_size="16pt")
     fig.add_layout(text_annotation1)
     fig.add_layout(text_annotation2)
 
     fig.x_range.start = mean_x-(stddeviations)*std_x
     fig.x_range.end = mean_x+(stddeviations)*std_x
+    fig.legend.location = 'top_right'
 
     return fig
 
-def find_maximum_around_peak(data, peak_location, search_range, npeaks):
-    """
-    Find the maximum value within a specified search range around a given peak location.
+def peakrefiner_maximum(data, peak_location, length):
+    center_index = peak_location
+    array = data
+    search_range = length
 
-    Parameters:
-        data (numpy.ndarray): Input data.
-        peak_location (int): Index of the located peak.
-        search_range (int): Number of indices to search around the peak location.
+    
+    max_gradient = float('-inf')
+    max_gradient_index = -1
+    for i in range(center_index - search_range, center_index + search_range + 1):     
+        gradient = array[i]
+        
+        if gradient > max_gradient:
+            max_gradient = gradient
+            max_gradient_index = i
+    
+    return max_gradient_index
+    
+def peakrefiner_center_of_weight(data, peak_location, length):
+    center_index = peak_location
+    search_range = length
+    search_range_indices = range(center_index - search_range, center_index + search_range + 1)
+    array = data[search_range_indices]
 
-    Returns:
-        float: Maximum value found within the search range.
-        int: Index of the maximum value within the search range.
-    """
-    numpeaks = int(npeaks)
-    start_index = max(0, peak_location - search_range)
-    end_index = min(len(data), peak_location + search_range + 1)
-    max_values = np.partition(data[start_index:end_index], -numpeaks)[-numpeaks:]  # Get the two highest values
-    max_indices = np.where(np.isin(data[start_index:end_index], max_values))[0] + start_index
-    max_index = min(max_indices)  # Select the leftmost index
-    return max_values[0], max_index
+    total_weighted_index = 0
+    total_weight = 0
+    order = 1.5
+    for index, value in enumerate(array):
+        total_weighted_index += index * (value)**order
+        total_weight += (value)**order
+
+    if total_weight == 0:
+        raise ValueError("Array has zero total weight, cannot calculate center of gravity.")
+
+    cog_index = int(total_weighted_index / total_weight)
+    return search_range_indices[cog_index]
+    
+def peakrefiner_leftmost(data, peak_location, length):
+    center_index = peak_location
+    search_range = length
+    search_range_indices = range(center_index - search_range, center_index + search_range + 1)
+    array = data[search_range_indices]
+   
+    # Find the indices of the three highest points in descending order
+    sorted_indices = sorted(range(len(array)), key=lambda i: array[i], reverse=True)
+    highest_indices = sorted_indices[:2]
+
+    # Return the index of the leftmost highest point
+    leftmost_index = min(highest_indices)
+    return search_range_indices[leftmost_index]
+    
+    
+def peakrefiner_rightmost(data, peak_location, length):
+    center_index = peak_location
+    search_range = length
+    search_range_indices = range(center_index - search_range, center_index + search_range + 1)
+    array = data[search_range_indices]
+   
+    # Find the indices of the three highest points in descending order
+    sorted_indices = sorted(range(len(array)), key=lambda i: array[i], reverse=True)
+    highest_indices = sorted_indices[:2]
+
+    # Return the index of the leftmost highest point
+    leftmost_index = max(highest_indices)
+    return search_range_indices[leftmost_index]
 
 
-def create_envelope(signal, window_size):
+def correlator(data, peak_locations, length):
+    segments = []
+    indexes = peak_locations
+    range_value = length
+    for idx in indexes:
+        if idx < range_value or idx >= len(data) - range_value:
+            continue
+        
+        segment = data[idx - range_value : idx + range_value + 1]
+        segments.append(segment)
+    alignment_shifts = []
+    target_segment = segments[10]
+    for segment in segments:
+        segment_n = segment / np.linalg.norm(segment)
+        target_segment_n = target_segment / np.linalg.norm(target_segment)
+        cross_corr = correlate(target_segment_n, segment_n, mode='full')
+        max_corr_index = np.argmax(cross_corr)
+        shift = max_corr_index - len(target_segment) + 1
+        alignment_shifts.append(shift)
+    return np.sum([alignment_shifts,peak_locations], axis=0)
+
+
+def create_envelope(x_data, signal, window_size):
     """
     Create an envelope for the input signal using a moving average.
 
@@ -417,9 +505,27 @@ def create_envelope(signal, window_size):
         numpy.ndarray: Envelope of the signal.
     """
     absolute_signal = np.abs(signal)
-    envelope = moving_average(absolute_signal, window_size)
+    envelope = moving_average(absolute_signal, 30)
     return envelope
+'''  
+def create_envelope1(x_data,signal, window_size):
+    """
+    Create an envelope for the input signal using a moving average.
 
+    Parameters:
+        signal (numpy.ndarray): Input signal.
+        window_size (int): Size of the moving average window.
+
+    Returns:
+        numpy.ndarray: Envelope of the signal.
+    """
+    smoothing_factor = 0.5
+    print(len(x_data))
+    print(len(signal))
+    spline = LSQUnivariateSpline(x_data, signal, t=None, k=3)
+    envelope = spline(x_data)
+    return envelope
+'''  
 def moving_average(data, window_size):
     """
     Apply a moving average smoothing to the input data.

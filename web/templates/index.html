@@ -62,6 +62,8 @@
             border-radius: 10px;
             text-decoration: none;
         }
+
+
     </style>
 </head>
 <body>
@@ -70,8 +72,11 @@
         <form method="POST" enctype="multipart/form-data">
             <input type="file" name="file" id="fileInput" accept=".wav" style="display:none;">
         </form>
-        <button id="filePickerButton">Or Choose File</button>
+        <button id="filePickerButton">Or choose file</button>
+        <i>   (150M limit)</i>
     </div>
+
+
 
     <div id="loadingSpinner">
         <img id="spinnerImage" src="/static/assets/spinner.png" alt="Loading...">

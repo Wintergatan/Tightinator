@@ -1,4 +1,7 @@
 # Wintergatan Timing Data Analysis
+## aka THE TIGHTINATOR
+
+The best peak detector in the tri-state area!
 
 The community has long since clamoured for automatic peak detection and generation of timing data for the Wintergatan Marble Machine project. An offhand comment during the 2023 Community Meetup colalesced into this project.
 
@@ -6,7 +9,7 @@ The community has long since clamoured for automatic peak detection and generati
 
 A live workflow for detection and generation of timing data is live at [https://wtg.mcnulty.in](https://wtg.mcnulty.in)
 
-There is a 100M file size limit for upload, and working data will be removed after 7 days on disk.
+There is a 150M file size limit for upload, and working data will be removed after 7 days on disk.
 
 
 ## Getting Started
@@ -15,8 +18,8 @@ The main.py file in the top-level of this repository is the best file for use lo
 
 main.py will output help:
 ```
-usage: main.py [-h] [-f FILENAME] [-o OUTPUT_FILENAME] [-t THRESH] [-c CHANNEL] [-en ENVELOPE_SMOOTHNESS] [-ex EXCLUSION] [-p FLOAT_PREC] [-n NPEAKS] [-b NBINS]
-               [-l LEN_SERIES] [-w] [-x X_WIDE] [-y Y_HIGH] [-v]
+usage: main.py [-h] [-f FILENAME] [-o OUTPUT_FILENAME] [-d DOWNSAMPLE_RATE] [-t THRESH] [-c CHANNEL] [-ex EXCLUSION] [-r FLOAT_PREC] [-l LEN_SERIES] [-w] [-z BPM_ZOOM]
+               [--work-dir WORK_DIR] [-x X_WIDE] [-y Y_HIGH] [-v]
 
 Map transient times
 
@@ -26,28 +29,28 @@ options:
                         File to open
   -o OUTPUT_FILENAME, --out OUTPUT_FILENAME
                         Filename to write output values to
+  -d DOWNSAMPLE_RATE, --downsample-rate DOWNSAMPLE_RATE
+                        DEFAULT=8 Amount by which to reduce resolution. Higher resolution means longer compute.
   -t THRESH, --threshold THRESH
-                        DEFAULT=0.25 Peak detection threshold, lower is rougher
+                        DEFAULT=0.1 Peak detection threshold. Works best 0.1 and above. Setting too high/low can cause misdetection.
   -c CHANNEL, --channel CHANNEL
-                        DEFAULT=1 Channel to get the Waveform from
-  -en ENVELOPE_SMOOTHNESS, --envelope-smoothness ENVELOPE_SMOOTHNESS
-                        DEFAULT=100 Amount of rounding around the envelope
+                        DEFAULT=1 Channel to get the waveform from.
   -ex EXCLUSION, --exclusion EXCLUSION
-                        DEFAULT=30 Exclusion threshold
-  -p FLOAT_PREC, --precision FLOAT_PREC
+                        DEFAULT=3200 Minimum distance between peaks.
+  -r FLOAT_PREC, --precision FLOAT_PREC
                         DEFAULT=6 Number of decimal places to round measurements to. Ex: -p 6 = 261.51927438
-  -n NPEAKS, --number-peaks NPEAKS
-                        DEFAULT=3 Number of valid Peaks from which the leftmost is selected for better lining up between transients.
-  -b NBINS, --bins NBINS
-                        DEFAULT=0 Number of Bins used for the gaussian curve.
   -l LEN_SERIES, --length LEN_SERIES
-                        DEFAULT=100 The length of the series of most consistent Beats.
-  -w, --web             Get some width/height values from browser objects for graphing. Defaults false.
+                        DEFAULT=100 The length of the series of most consistent beats.
+  -w, --web             DEFAULT=False Get some width/height values from/ browser objects for graphing. Defaults false.
+  -z BPM_ZOOM, --bpm-zoom BPM_ZOOM
+                        DEFAULT=0 The target BPM of the song. Will be scaled to 75% height. Use 0 for auto.
+  --work-dir WORK_DIR   Directory structure to work under.
   -x X_WIDE, --x-width X_WIDE
                         DEFAULT=2000 Fixed width for graphs.
   -y Y_HIGH, --plot-height Y_HIGH
                         DEFAULT=600 Fixed height for single plot.
   -v, --verbose         Set debug logging
+
 
 ```
 
@@ -99,5 +102,6 @@ Any contribution is welcome! Please branch your feature and create a Pull Reques
 
 ## Authors
 
-So far written by Tom and Yan!
+So far written by Tom and Yan, with contributions from others! Thanks all!
+https://github.com/YanFett/Wintergatan_data_analysis/graphs/contributors
 

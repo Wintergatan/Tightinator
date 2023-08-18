@@ -27,7 +27,8 @@ work_dir = ''
 web_mode = False
 x_wide = ''
 y_high = ''
-bpm_zoom = ''
+bpm_target = ''
+bpm_window = ''
 #klick = ''
 
 
@@ -44,7 +45,8 @@ parser.add_argument('-r', '--precision', dest='float_prec', default='6', type=in
 #parser.add_argument('-b', '--bins', dest='nbins', default='0', type=int, action='store', help='DEFAULT=0 Number of bins used for the gaussian curve.') # used, but could be removed
 parser.add_argument('-l', '--length', dest='len_series', default='100', type=int, action='store', help='DEFAULT=100 The length of the series of most consistent beats.')
 parser.add_argument('-w', '--web', dest='web_mode', default=False, action='store_true', help='DEFAULT=False Get some width/height values from/ browser objects for graphing. Defaults false.')
-parser.add_argument('-z', '--bpm-zoom', dest='bpm_zoom', default='0', type=float, action='store', help='DEFAULT=0 The target BPM of the song. Will be scaled to 75%% height. Use 0 for auto.')
+parser.add_argument('-b', '--bpm-target', dest='bpm_target', default='0', type=float, action='store', help='DEFAULT=0 The target BPM of the song. Use 0 for auto.')
+parser.add_argument('-bw', '--bpm-window', dest='bpm_window', default='0', type=float, action='store', help='DEFAULT=0 Window of BPM that should be visible around the target. Will be scaled to 75%% target height if 0. Default 0.')
 #parser.add_argument('-k', '--klick', dest='klick', default='1', type=int, action='store', help='DEFAULT=1 Currently unused.')#could be removed
 parser.add_argument('--work-dir', dest='work_dir', action='store', help='Directory structure to work under.' )
 parser.add_argument('-x', '--x-width', dest='x_wide', default='2000', type=int, action='store', help='DEFAULT=2000 Fixed width for graphs.')
@@ -77,7 +79,8 @@ def main():
     len_series = args.len_series
     full_width = args.x_wide - 15
     plot_height = args.y_high
-    bpm_zoom = args.bpm_zoom
+    bpm_target = args.bpm_target    
+    bpm_window = args.bpm_window
     #klick = args.klick
 
     plot_height = int((plot_height-140)/2)
@@ -191,7 +194,7 @@ def main():
     
     fig_waveform = figure(title='Consistency/Waveform plot', x_axis_label='Time [s]', y_axis_label='Amplitude [a.u.]', width=full_width, height=plot_height)
     fig_waveform.output_backend = 'webgl'
-    waveform_fig = plot_waveform(fig_waveform,signal,time,peaks,peaktimes,frame_rate,best_series_times,threshold,bpm_zoom, norm_envelope)
+    waveform_fig = plot_waveform(fig_waveform,signal,time,peaks,peaktimes,frame_rate,best_series_times,threshold,bpm_target,bpm_window, norm_envelope)
     logging.info("waveform figure created")
 
     fig_stat = figure(title='Statistics plot - most consistent Beats', x_axis_label='Transient Time difference [ms]', y_axis_label='Probability density[1/ms]', width=int(np.floor(full_width/2)), height=plot_height)
@@ -275,7 +278,7 @@ def plot_peakdiff(fig, signal, time, peaks):
     return fig
 
     
-def plot_waveform(fig, signal, time, peaks,peaktimes,frame_rate,best_series_times,sensitivity,bpm_zoom,envelope):
+def plot_waveform(fig, signal, time, peaks,peaktimes,frame_rate,best_series_times,sensitivity,bpm_target,bpm_window,envelope):
     cutoff = 0.01
 
     signal_cut = signal[signal >cutoff]
@@ -306,14 +309,22 @@ def plot_waveform(fig, signal, time, peaks,peaktimes,frame_rate,best_series_time
             fill_color.append('darkred')  # Red for negative acceleration
         else:
             fill_color.append('darkorange')  # Orange for positive acceleration
-    if(not bpm_zoom):
-        secyrange_start = max(0,diff_mean-zoom_factor*diff_stdev)
-        secyrange_end = diff_mean+zoom_factor*diff_stdev
+    if(not bpm_target):
+        if(not bpm_window):
+            secyrange_start = max(0,diff_mean-zoom_factor*diff_stdev)
+            secyrange_end = diff_mean+zoom_factor*diff_stdev
+        else:
+            secyrange_start = max(0,diff_mean-bpm_window)
+            secyrange_end = diff_mean+bpm_window
         accel_bottom = secyrange_start
         accel_top = accel_bottom + np.abs(accel)
     else:
-        secyrange_start = 0
-        secyrange_end = bpm_zoom/0.75
+        if(not bpm_window):
+            secyrange_start = 0
+            secyrange_end = bpm_target/0.75
+        else:
+            secyrange_start = bpm_target - bpm_window
+            secyrange_end = bpm_target + bpm_window
         accel_bottom = 0
         accel_top = np.abs(accel)
     

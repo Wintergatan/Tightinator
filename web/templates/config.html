@@ -115,6 +115,11 @@
             font-size: 12px;
         }
 
+        fieldset {
+            margin-bottom: 10px;
+            padding-bottom: 0px;
+        }
+
     </style>
 </head>
 <body>
@@ -124,7 +129,7 @@
     </div>
 
     <div>
-        <form id="configForm" action="{{ url_for('run', uuid=uuid, filename=filename, output_filename=output_filename) }}" method="post">
+        <form id="configForm" action="{{ url_for('run', uuid=uuid) }}" method="post">
             <formTitle>
                 <h1>Peak detection settings:</h1>
                 <i>Hover over for a description of the effect of the option.</i>
@@ -139,11 +144,6 @@
             <label for="threshold" title="Peak detection threshold, lower is rougher.">Sensitivity:
                 <b><span id="thresholdLabel">0.1</span></b>
                 <input type="range" id="threshold" name="threshold" min="0" max="1" step="0.05" value="0.1">
-            </label>
-
-            <label for="roundness" title="Amount of rounding around the envelope.">Roundness:
-                <b><span id="roundnessLabel">100</span></b>
-                <input type="range" id="roundness" name="roundness" min="0" max="200" step="5" value="100">
             </label>
 
             <label for="sample" title="The length of the series of most consistent beats.">Sample size:
@@ -161,8 +161,20 @@
             <!-- Advanced Options section -->
             <div id="advancedOptions" class="expanded" style="display: none;">
                 </br>
-                <label for"bpmZoom" title="The target BPM of the song. Will be scaled to 75% height. 0 means full scale.">BPM Target:
-                    <input type="number" id="bpmZoom" name="bpmZoom" value="0">
+                <fieldset>
+                    <legend>Peak Detection Algorithm:</legend>
+
+                    <div>
+                        <label for="algRight">Right <input type="radio" id="algRight" name="algSelect" value="1" checked /></label>
+                        <label for="algCenter">Center <input type="radio" id="algCenter" name="algSelect" value="0" /></label>
+                    </div>
+                </fieldset>
+
+                <label for"bpm" title="The target BPM of the song. 0 = Auto.">BPM:
+                    <input type="number" id="bpm" name="bpm" value="0">
+                </label>
+                <label for"bpmWin" title="Window of BPM that should be visible around the target. 0 = Auto.">BPM Window:
+                    <input type="number" id="bpmWin" name="bpmWin" value="0">
                 </label>
                 <label for="rounding" title=" Number of decimal places to round measurements to. Ex: 6 = 0.000000">Number of decimals:
                     <input type="number" id="rounding" name="rounding" step="1" value="6" required>
@@ -231,7 +243,7 @@
     </script>
     </script>
 
-    <script>
+    <!--script>
         const thresholdInput = document.getElementById('threshold');
         const thresholdLabel = document.getElementById('thresholdLabel');
         const roundnessInput = document.getElementById('roundness');
@@ -259,7 +271,7 @@
             const newRoundnessLabel = document.createTextNode(roundnessInput.value);
             roundnessLabel.appendChild(newRoundnessLabel);
         });
-    </script>
+    </script-->
 
     <script>
         const configForm = document.getElementById('configForm'); // Get the form element

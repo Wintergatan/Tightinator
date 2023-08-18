@@ -53,10 +53,10 @@ def rerun(uuid):
 def run(uuid):
     filename = str(request.form['filename'])
     output_filename = str(request.form['output_filename'])
-
-    bpm_zoom = str(request.form['bpmZoom'])
+    alg = str(request.form['algSelect'])
+    bpm = str(request.form['bpm'])
+    bpmWin = str(request.form['bpmWin'])
     threshold = str(request.form['threshold'])
-    #roundness = str(request.form['roundness'])
     sample_size = str(request.form['sample'])
     rounding = str(request.form['rounding'])
     channel = str(request.form['channelNumber'])
@@ -71,7 +71,9 @@ def run(uuid):
         '-f', filename,
         '-o', output_filename,
         '-d', downsample_rate,
-        '-z', bpm_zoom,
+        '-a', alg,
+        '-b', bpm,
+        '-bw', bpmWin,
         '-t', threshold,
         '-l', sample_size,
         '-r', rounding,

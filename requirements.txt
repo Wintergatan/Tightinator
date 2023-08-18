@@ -2,3 +2,4 @@ numpy
 bokeh
 scipy
 flask
+scikit-image

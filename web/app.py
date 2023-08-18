@@ -37,6 +37,18 @@ def config(uuid, filename):
 
     return render_template('config.html', uuid=uuid, filename=filename, output_filename=output_filename)
 
+@app.route('/config/<uuid>/', methods=['GET'])
+def rerun(uuid):
+    filename = processes[uuid]
+    timestamp = time.strftime("%Y%m%d-%H%M%S")
+    os.rename("static/upload/{}/summary.html".format(uuid), "static/upload/{}/summary-{}.html".format(uuid, timestamp))
+    # Call generate_csv here after the user is redirected to the config endpoint
+    #generate_csv(f'static/upload/{uuid}/{uuid}.wav', output_csv, threshold)
+    output_filename = filename[:-4]+".csv"
+    output_filename = output_filename.replace(" ", "_")
+
+    return render_template('config.html', uuid=uuid, filename=filename, output_filename=output_filename)
+
 @app.route('/run/<uuid>/', methods=['POST'])
 def run(uuid):
     filename = str(request.form['filename'])
@@ -49,6 +61,8 @@ def run(uuid):
     rounding = str(request.form['rounding'])
     channel = str(request.form['channelNumber'])
     downsample_rate = str(request.form['downsampleRate'])
+
+    processes[uuid] = filename
 
     debug_command = [
         'python3',
@@ -72,14 +86,6 @@ def run(uuid):
             ]
         debug_command = debug_command + web_mode
 
-    '''
-    debug_command = [
-        'python3',
-        'main.py',
-        '-f', "static/upload/{}/{}".format(uuid, filename),
-        '-o', "static/upload/{}/{}".format(uuid, output_filename)
-    ]
-    '''
 
     print("Running {}".format(debug_command))
 

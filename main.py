@@ -10,6 +10,7 @@ from scipy.signal import find_peaks, correlate
 from scipy.interpolate import LSQUnivariateSpline
 import argparse
 import logging
+from skimage.measure import block_reduce
 
 filename = ''
 output_filename = ''
@@ -29,13 +30,13 @@ x_wide = ''
 y_high = ''
 bpm_target = ''
 bpm_window = ''
-#klick = ''
+klick = ''
 
 
 parser = argparse.ArgumentParser(description='Map transient times')
 parser.add_argument('-f', '--file', dest='filename', type=str, action='store', help='File to open')
 parser.add_argument('-o', '--out', dest='output_filename', type=str, action='store', help='Filename to write output values to')
-parser.add_argument('-d', '--downsample-rate', dest='downsample_rate', default='8', type=int, action='store', help='DEFAULT=8 Amount by which to reduce resolution. Higher resolution means longer compute.')
+parser.add_argument('-d', '--downsample-rate', dest='downsample_rate', default='4', type=int, action='store', help='DEFAULT=4 Amount by which to reduce resolution. Higher resolution means longer compute.')
 parser.add_argument('-t', '--threshold', dest='thresh', default='0.1', type=float, action='store', help='DEFAULT=0.1 Peak detection threshold. Works best 0.1 and above. Setting too high/low can cause misdetection.')
 parser.add_argument('-c', '--channel', dest='channel', default='1', type=int, action='store', help='DEFAULT=1 Channel to get the waveform from.')
 #parser.add_argument('-en', '--envelope-smoothness', dest='envelope_smoothness', default='100', type=int, action='store', help='DEFAULT=100 Currently unused.') #unused, i would keep it if the need arises
@@ -47,7 +48,7 @@ parser.add_argument('-l', '--length', dest='len_series', default='100', type=int
 parser.add_argument('-w', '--web', dest='web_mode', default=False, action='store_true', help='DEFAULT=False Get some width/height values from/ browser objects for graphing. Defaults false.')
 parser.add_argument('-b', '--bpm-target', dest='bpm_target', default='0', type=float, action='store', help='DEFAULT=0 The target BPM of the song. Use 0 for auto.')
 parser.add_argument('-bw', '--bpm-window', dest='bpm_window', default='0', type=float, action='store', help='DEFAULT=0 Window of BPM that should be visible around the target. Will be scaled to 75%% target height if 0. Default 0.')
-#parser.add_argument('-k', '--klick', dest='klick', default='1', type=int, action='store', help='DEFAULT=1 Currently unused.')#could be removed
+parser.add_argument('-k', '--klick', dest='klick', default='1', type=int, action='store', help='DEFAULT=1 Switch between peak detectors. 0 searches for center of mass, 1 searches to the peak next to the center of mass. Default 1')
 parser.add_argument('--work-dir', dest='work_dir', action='store', help='Directory structure to work under.' )
 parser.add_argument('-x', '--x-width', dest='x_wide', default='2000', type=int, action='store', help='DEFAULT=2000 Fixed width for graphs.')
 parser.add_argument('-y', '--plot-height', dest='y_high', default='1340', type=int, action='store', help='DEFAULT=600 Fixed height for single plot.')
@@ -68,8 +69,8 @@ def main():
     # User configuration values
     filename = args.filename
     #envelope_smoothness = args.envelope_smoothness
-    downsamplerate = args.downsample_rate
-    exclusion = int(args.exclusion / downsamplerate)
+    downsamplerate = int(args.downsample_rate)
+    exclusion = int(int(args.exclusion) / downsamplerate)
     #output_filename = args.output_filename
     threshold = args.thresh
     channel = args.channel
@@ -81,7 +82,7 @@ def main():
     plot_height = args.y_high
     bpm_target = args.bpm_target    
     bpm_window = args.bpm_window
-    #klick = args.klick
+    klick = args.klick
 
     plot_height = int((plot_height-140)/2)
 
@@ -113,12 +114,14 @@ def main():
         amplitude_data = data[:,channel-1] # First channel has to be 1, only programmers know things start at 0
     else:
         amplitude_data = data
-    amplitude_data = amplitude_data[::downsamplerate]
+    #amplitude_data = resample(amplitude_data, int(len(amplitude_data)/downsamplerate))
+    #amplitude_data = amplitude_data[::downsamplerate]
+    reduction_factor = (downsamplerate,)
+    amplitude_data = block_reduce(amplitude_data,reduction_factor , np.mean)
     timefactor = (frame_rate/downsamplerate)/1000
 
 
-    normalized_amplitude = amplitude_data / np.max(np.abs(amplitude_data))
-    normalized_amplitude = replace_negatives_with_neighbors(normalized_amplitude)
+    normalized_amplitude = np.abs(amplitude_data / np.max(np.abs(amplitude_data)))
     time = np.arange(0, len(normalized_amplitude))/timefactor
     #envel = create_envelope(time,np.abs(normalized_amplitude),envelope_smoothness)
     #norm_envelope = envel / np.max(np.abs(envel))
@@ -132,8 +135,10 @@ def main():
     peaktimes = []
 
     for peak in peaks_roughly:
-        search_range = 50
+        search_range = int(400/downsamplerate)
         max_index = peakrefiner_center_of_weight(np.abs(normalized_amplitude), peak, search_range)
+        if(klick):
+            max_index = peakrefiner_find_peak_to_right(np.abs(normalized_amplitude), max_index, search_range)
         #max_time, max_index, max_value = find_fwhm_center(time,np.abs(normalized_amplitude),peak,search_range)
         if(len(peaks) >0):
             if(peaks[-1] != max_index):
@@ -189,7 +194,7 @@ def main():
     norm_envelope = []
     fig_center = figure(title='Similarness plot - most consistent Beats', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]', width=int(np.floor(full_width/2)), height=plot_height)
     fig_center.output_backend = 'webgl'
-    center_fig = plot_centered(fig_center,signal,time, best_peaks, norm_envelope)
+    center_fig = plot_centered(fig_center,signal,time, best_peaks, norm_envelope,downsamplerate)
     logging.info("center_plot figure created")
     
     fig_waveform = figure(title='Consistency/Waveform plot', x_axis_label='Time [s]', y_axis_label='Amplitude [a.u.]', width=full_width, height=plot_height)
@@ -221,11 +226,13 @@ def pad_and_stack_arrays(arrays):
     
     return stacked_array
 
-def plot_centered(fig, signal, time, peaks, norm_envelope):
+def plot_centered(fig, signal, time, peaks, norm_envelope,downsamplerate):
     # Update centered segments plot here
-    segment_width = 50
-    cutoff = 0
+    segment_width = int(400/downsamplerate)
+    cutoff = -1
     maxheight = 1
+    startvals = []
+    endvals = []
     xs, ys, ys2, peakheights = [], [], [], []
     for peak in peaks:
         start = max(1, peak - segment_width)
@@ -234,21 +241,23 @@ def plot_centered(fig, signal, time, peaks, norm_envelope):
         #segment2= norm_envelope[start:end]
         centered_x = time[start:end] - time[peak]
         xs.append( centered_x[segment >cutoff])
-        ys.append((segment[segment>cutoff])/max(segment))
+        ys.append((segment[segment>cutoff])/signal[peak])
         #ys2.append((segment2[segment>cutoff])/max(segment2))
         peakheights.append(signal[peak]/max(segment))
-        newmax = max((segment[segment>cutoff])/max(segment))
+        newmax = max((segment[segment>cutoff])/signal[peak])
         if(newmax > maxheight):
             maxheight = newmax
+        startvals.append(min(centered_x))
+        endvals.append(max(centered_x))
     #colors = Category20[len(peaks)]
     
     fig.multi_line(xs, ys, alpha=0.5, legend_label='centered Waveform')
     #fig.multi_line(xs, ys2, alpha=0.5, legend_label='centered Waveform', color='orange')
-    fig.circle(0, peakheights, size=10, fill_color='red', legend_label='detected peaks')
-    fig.x_range.start = min(centered_x[segment >cutoff])
-    fig.x_range.end = max(centered_x[segment >cutoff])
+    fig.circle(0, 1, size=10, fill_color='red', legend_label='detected peaks')
+    fig.x_range.start = min(startvals)
+    fig.x_range.end = max(endvals)
     fig.y_range.start = 0
-    fig.y_range.end = maxheight + 0.05
+    fig.y_range.end = min(maxheight + 0.05,2)
     fig.xaxis.ticker.num_minor_ticks = 9
     return fig
 
@@ -436,7 +445,28 @@ def peakrefiner_maximum(data, peak_location, length):
 def peakrefiner_center_of_weight(data, peak_location, length):
     center_index = peak_location
     search_range = length
-    search_range_indices = range(center_index - search_range, center_index + search_range + 1)
+    start_index = max(center_index - search_range, 0)
+    end_index = min(center_index + search_range + 1, len(data))
+    array = data[start_index:end_index]
+
+    indices = np.arange(len(array))
+    weighted_indices = indices * np.power(array, 1.5)
+    total_weighted_index = np.sum(weighted_indices)
+    total_weight = np.sum(np.power(array, 1.5))
+
+    if total_weight == 0:
+        raise ValueError("Array has zero total weight, cannot calculate center of gravity.")
+
+    cog_index = int(total_weighted_index / total_weight)
+    return start_index + cog_index    
+    
+    
+    
+'''   
+def peakrefiner_center_of_weight(data, peak_location, length):
+    center_index = peak_location
+    search_range = length
+    search_range_indices = range(min(center_index - search_range,0), max(center_index + search_range + 1,len(data)))
     array = data[search_range_indices]
 
     total_weighted_index = 0
@@ -451,7 +481,7 @@ def peakrefiner_center_of_weight(data, peak_location, length):
 
     cog_index = int(total_weighted_index / total_weight)
     return search_range_indices[cog_index]
-    
+'''   
 def peakrefiner_leftmost(data, peak_location, length):
     center_index = peak_location
     search_range = length
@@ -466,6 +496,16 @@ def peakrefiner_leftmost(data, peak_location, length):
     leftmost_index = min(highest_indices)
     return search_range_indices[leftmost_index]
     
+    
+def peakrefiner_find_peak_to_right(data, peak_location, search_range):
+    end_index = min(peak_location + search_range + 1, len(data))
+    array = data[peak_location:end_index]
+
+    if len(array) == 0:
+        raise ValueError("No data in the search range.")
+
+    peak_index = np.argmax(array) + peak_location
+    return peak_index
     
 def peakrefiner_rightmost(data, peak_location, length):
     center_index = peak_location
@@ -551,12 +591,6 @@ def moving_average(data, window_size):
     window = np.ones(window_size) / float(window_size)
     smoothed_data = np.convolve(data, window, mode='same')
     return smoothed_data
-
-
-def replace_negatives_with_neighbors(lst):
-    new_lst = lst.copy()  # Create a copy of the original list
-    new_lst = np.abs(lst)
-    return new_lst
 
 if __name__ == '__main__':
     main()

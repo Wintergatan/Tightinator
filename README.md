@@ -18,8 +18,8 @@ The main.py file in the top-level of this repository is the best file for use lo
 
 main.py will output help:
 ```
-usage: main.py [-h] [-f FILENAME] [-o OUTPUT_FILENAME] [-d DOWNSAMPLE_RATE] [-t THRESH] [-c CHANNEL] [-ex EXCLUSION] [-r FLOAT_PREC] [-l LEN_SERIES] [-w] [-z BPM_ZOOM]
-               [--work-dir WORK_DIR] [-x X_WIDE] [-y Y_HIGH] [-v]
+usage: main.py [-h] [-f FILENAME] [-o OUTPUT_FILENAME] [-d DOWNSAMPLE_RATE] [-t THRESH] [-c CHANNEL] [-ex EXCLUSION] [-r FLOAT_PREC] [-l LEN_SERIES] [-w] [-b BPM_TARGET]
+               [-bw BPM_WINDOW] [-a KLICK] [--work-dir WORK_DIR] [-x X_WIDE] [-y Y_HIGH] [-v]
 
 Map transient times
 
@@ -30,7 +30,7 @@ options:
   -o OUTPUT_FILENAME, --out OUTPUT_FILENAME
                         Filename to write output values to
   -d DOWNSAMPLE_RATE, --downsample-rate DOWNSAMPLE_RATE
-                        DEFAULT=8 Amount by which to reduce resolution. Higher resolution means longer compute.
+                        DEFAULT=4 Amount by which to reduce resolution. Higher resolution means longer compute.
   -t THRESH, --threshold THRESH
                         DEFAULT=0.1 Peak detection threshold. Works best 0.1 and above. Setting too high/low can cause misdetection.
   -c CHANNEL, --channel CHANNEL
@@ -42,15 +42,18 @@ options:
   -l LEN_SERIES, --length LEN_SERIES
                         DEFAULT=100 The length of the series of most consistent beats.
   -w, --web             DEFAULT=False Get some width/height values from/ browser objects for graphing. Defaults false.
-  -z BPM_ZOOM, --bpm-zoom BPM_ZOOM
-                        DEFAULT=0 The target BPM of the song. Will be scaled to 75% height. Use 0 for auto.
+  -b BPM_TARGET, --bpm-target BPM_TARGET
+                        DEFAULT=0 The target BPM of the song. 0 = Auto.
+  -bw BPM_WINDOW, --bpm-window BPM_WINDOW
+                        DEFAULT=0 Window of BPM that should be visible around the target. 0 = Auto.
+  -a KLICK, --algorithm KLICK
+                        DEFAULT=1 Switch between peak detecting algorithm. 0 = Center, 1 = Right
   --work-dir WORK_DIR   Directory structure to work under.
   -x X_WIDE, --x-width X_WIDE
                         DEFAULT=2000 Fixed width for graphs.
   -y Y_HIGH, --plot-height Y_HIGH
                         DEFAULT=600 Fixed height for single plot.
   -v, --verbose         Set debug logging
-
 
 ```
 

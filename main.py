@@ -17,12 +17,9 @@ output_filename = ''
 downsample_rate = ''
 thresh = ''
 channel = ''
-#envelope_smoothness = ''
 exclusion = ''
 float_prec = ''
 verbose = ''
-#npeaks = ''
-#nbins = ''
 len_series = ''
 work_dir = ''
 web_mode = False
@@ -39,16 +36,13 @@ parser.add_argument('-o', '--out', dest='output_filename', type=str, action='sto
 parser.add_argument('-d', '--downsample-rate', dest='downsample_rate', default='4', type=int, action='store', help='DEFAULT=4 Amount by which to reduce resolution. Higher resolution means longer compute.')
 parser.add_argument('-t', '--threshold', dest='thresh', default='0.1', type=float, action='store', help='DEFAULT=0.1 Peak detection threshold. Works best 0.1 and above. Setting too high/low can cause misdetection.')
 parser.add_argument('-c', '--channel', dest='channel', default='1', type=int, action='store', help='DEFAULT=1 Channel to get the waveform from.')
-#parser.add_argument('-en', '--envelope-smoothness', dest='envelope_smoothness', default='100', type=int, action='store', help='DEFAULT=100 Currently unused.') #unused, i would keep it if the need arises
 parser.add_argument('-ex', '--exclusion', dest='exclusion', default='3200', type=int, action='store', help='DEFAULT=3200 Minimum distance between peaks.')
 parser.add_argument('-r', '--precision', dest='float_prec', default='6', type=int, action='store', help='DEFAULT=6 Number of decimal places to round measurements to. Ex: -p 6 = 261.51927438')
-#parser.add_argument('-p', '--number-peaks', dest='npeaks', default='3', type=int, action='store', help='DEFAULT=3 Currently unused') # unused
-#parser.add_argument('-b', '--bins', dest='nbins', default='0', type=int, action='store', help='DEFAULT=0 Number of bins used for the gaussian curve.') # used, but could be removed
 parser.add_argument('-l', '--length', dest='len_series', default='100', type=int, action='store', help='DEFAULT=100 The length of the series of most consistent beats.')
 parser.add_argument('-w', '--web', dest='web_mode', default=False, action='store_true', help='DEFAULT=False Get some width/height values from/ browser objects for graphing. Defaults false.')
-parser.add_argument('-b', '--bpm-target', dest='bpm_target', default='0', type=float, action='store', help='DEFAULT=0 The target BPM of the song. Use 0 for auto.')
-parser.add_argument('-bw', '--bpm-window', dest='bpm_window', default='0', type=float, action='store', help='DEFAULT=0 Window of BPM that should be visible around the target. Will be scaled to 75%% target height if 0. Default 0.')
-parser.add_argument('-k', '--klick', dest='klick', default='1', type=int, action='store', help='DEFAULT=1 Switch between peak detectors. 0 searches for center of mass, 1 searches to the peak next to the center of mass. Default 1')
+parser.add_argument('-b', '--bpm-target', dest='bpm_target', default='0', type=float, action='store', help='DEFAULT=0 The target BPM of the song. 0 = Auto.')
+parser.add_argument('-bw', '--bpm-window', dest='bpm_window', default='0', type=float, action='store', help='DEFAULT=0 Window of BPM that should be visible around the target. 0 = Auto.')
+parser.add_argument('-a', '--algorithm', dest='klick', default='1', type=int, action='store', help='DEFAULT=1 Switch between peak detecting algorithm. 0 = Center, 1 = Right')
 parser.add_argument('--work-dir', dest='work_dir', action='store', help='Directory structure to work under.' )
 parser.add_argument('-x', '--x-width', dest='x_wide', default='2000', type=int, action='store', help='DEFAULT=2000 Fixed width for graphs.')
 parser.add_argument('-y', '--plot-height', dest='y_high', default='1340', type=int, action='store', help='DEFAULT=600 Fixed height for single plot.')

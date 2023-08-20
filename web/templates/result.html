@@ -10,8 +10,9 @@
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            height: 100vh;
+            height: 100%;
             margin: 0;
+            overflow-y: auto;
         }
 
         #message {
@@ -19,13 +20,12 @@
             text-align: center;
         }
 
-
         h1 {
             margin-bottom: 20px;
         }
 
         #spinnerImage {
-            width: 400px; /* Adjust the spinner image size as needed */
+            width: 400px;
             height: 225px;
             animation: spin 2s linear infinite;
         }
@@ -33,7 +33,7 @@
         #spinnerContainer {
             position: relative;
             width: 100%;
-            height: 100vh; /* Set the height of the container to match the viewport */
+            height: 100vh;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -67,13 +67,12 @@
             border-radius: 20px;
             cursor: pointer;
             text-decoration: none;
-            margin-bottom: 20px;
         }
 
         #downloadLink {
             display: inline-block;
             text-align: center;
-            margin-left: 10px;
+            margin-bottom: 10px;
         }
 
         #homeButton {
@@ -83,7 +82,7 @@
 
         #homeLink {
             display: inline-block;
-            padding: 10px 20px;
+            padding: 10px;
             margin-left: 20px;
             background-color: #007bff;
             color: white;
@@ -99,8 +98,27 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            margin: 0 auto; /* Center horizontally */
-            overflow: scroll; /* Enable vertical and horizontal scrolling */
+            margin: 0 auto;
+            overflow: scroll;
+        }
+
+        #summaries  {
+            display: none;
+            margin: 10px;
+            line-height: 25px;
+        }
+
+        #summaryContainer {
+            position: relative;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        #summaryIframe {
+            display: block;
+            width: 100%;
+            height: 100%;
+            border: none;
         }
     </style>
 
@@ -118,10 +136,10 @@
     {% endif %}
 
     {% if not failure %}
-        <h1>Peak Detection Results</h1>
-
         <div id="downloadLink">
+            <h1>Tightinator Peak Detection Results</h1>
             <a id="downloadButton" href="/download/{{ uuid }}/{{ output_filename }}">Download {{ output_filename }}</a>
+            <a id="downloadButton" href="/download/{{ uuid }}/summary.html">Download plots</a>
             <a id="downloadButton" href="/config/{{ uuid }}/">Return to settings</a>
             <a id="homeLink" href="{{ url_for('index') }}">Upload another file</a>
         </div>
@@ -131,19 +149,29 @@
                 <h2>Loading plots...</h2>
                 <img id="spinnerImage" src="/static/assets/spinner.png" alt="Loading...">
             </div>
-            <object id="summaryObject" type="text/html"></object>
+            <div id="summaryContainer">
+                <iframe id="summaryIframe" style="display: none;" width="100%" height="800"></iframe>
+            </div>
         </div>
+
+        <div id="summaries">
+            <h2>Previous results:</h2>
+            <ul id="summariesList">
+                {% for summary in previous_summaries %}
+                    <li><a href="{{ summary.url }}" target="_blank">{{ summary.name }}</a></li>
+                {% endfor %}
+            </ul>
+        </div>
+
     {% endif %}
 
-
     <script>
-        // Get the UUID from the query parameter
         const uuid = "{{ uuid }}";
         const output_filename = "{{ output_filename }}";
 
         function getSummary() {
             const spinner = document.getElementById('spinner');
-            const summaryObject = document.getElementById('summaryObject');
+            const summaryIframe = document.getElementById('summaryIframe');
 
             function fetchSummary() {
                 fetch(`/static/upload/${uuid}/summary.html`)
@@ -155,12 +183,12 @@
                     })
                     .then(html => {
                         spinner.style.display = 'none';
-
-                        const blob = new Blob([html], { type: 'text/html' });
-                        const blobUrl = URL.createObjectURL(blob);
-
-                        summaryObject.style.display = 'block';
-                        summaryObject.data = blobUrl;
+                        summaryIframe.style.display = 'block';
+                        summaryIframe.srcdoc = html;
+                        summaryIframe.onload = () => {
+                            const iframeHeight = summaryIframe.contentWindow.document.documentElement.scrollHeight;
+                            summaryIframe.style.height = iframeHeight + 'px';
+                        };
                     })
                     .catch(() => {
                         setTimeout(fetchSummary, 1000);
@@ -177,6 +205,37 @@
         document.addEventListener('DOMContentLoaded', () => {
             getSummary();
         });
+    </script>
+
+    <script>
+        const summariesElement = document.getElementById('summaries');
+        const previousSummariesList = document.getElementById('summariesList');
+
+        fetch(`/summaries/${uuid}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.length === 0) {
+                    summariesElement.style.display = 'none';
+                } else {
+                    data.forEach(summary => {
+                        const summaryLink = document.createElement('a');
+                        console.log(summary.filename)
+                        summaryLink.href = `/${summary.filename}`;
+                        summaryLink.textContent = summary.display_name;
+                        summaryLink.target = '_blank';
+
+                        const listItem = document.createElement('li');
+                        listItem.appendChild(summaryLink);
+
+                        previousSummariesList.appendChild(listItem);
+                });
+                    summariesElement.style.display = 'block';
+                }
+            })
+            .catch(error => {
+                summariesElement.style.display = 'none';
+                console.error('Error fetching previous summaries:', error);
+            });
     </script>
 
 </body>

@@ -111,11 +111,12 @@
         #summaryContainer {
             position: relative;
             width: 100%;
+            height: 100%;
             overflow: hidden;
         }
 
         #summaryIframe {
-            display: block;
+            display: none;
             width: 100%;
             height: 100%;
             border: none;
@@ -150,7 +151,7 @@
                 <img id="spinnerImage" src="/static/assets/spinner.png" alt="Loading...">
             </div>
             <div id="summaryContainer">
-                <iframe id="summaryIframe" style="display: none;" width="100%" height="800"></iframe>
+                <iframe id="summaryIframe"></iframe>
             </div>
         </div>
 
@@ -185,10 +186,6 @@
                         spinner.style.display = 'none';
                         summaryIframe.style.display = 'block';
                         summaryIframe.srcdoc = html;
-                        summaryIframe.onload = () => {
-                            const iframeHeight = summaryIframe.contentWindow.document.documentElement.scrollHeight;
-                            summaryIframe.style.height = iframeHeight + 'px';
-                        };
                     })
                     .catch(() => {
                         setTimeout(fetchSummary, 1000);

@@ -35,7 +35,7 @@ def index():
 def config(uuid, filename):
     processes[uuid] = filename
     print("Writing processes[{}]={}".format(uuid, filename))
-    logging.info("Writing processes[{}]={}".format(uuid, filename))
+    #logging.info("Writing processes[{}]={}".format(uuid, filename))
     save_processes_to_file(processes)
     output_filename = filename[:-4]+".csv"
     output_filename = output_filename.replace(" ", "_")

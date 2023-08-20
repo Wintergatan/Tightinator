@@ -7,3 +7,4 @@ summary.html
 web/__pycache__
 sample_data/*.csv
 processes.json
+*.zip

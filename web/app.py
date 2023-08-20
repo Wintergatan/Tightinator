@@ -1,6 +1,9 @@
 import os
+import json
+import glob
 import uuid
 import time
+#import logging
 import subprocess
 import threading
 from threading import Thread
@@ -30,8 +33,10 @@ def index():
 
 @app.route('/config/<uuid>/<filename>', methods=['GET'])
 def config(uuid, filename):
-    # Call generate_csv here after the user is redirected to the config endpoint
-    #generate_csv(f'static/upload/{uuid}/{uuid}.wav', output_csv, threshold)
+    processes[uuid] = filename
+    print("Writing processes[{}]={}".format(uuid, filename))
+    logging.info("Writing processes[{}]={}".format(uuid, filename))
+    save_processes_to_file(processes)
     output_filename = filename[:-4]+".csv"
     output_filename = output_filename.replace(" ", "_")
 
@@ -42,8 +47,6 @@ def rerun(uuid):
     filename = processes[uuid]
     timestamp = time.strftime("%Y%m%d-%H%M%S")
     os.rename("static/upload/{}/summary.html".format(uuid), "static/upload/{}/summary-{}.html".format(uuid, timestamp))
-    # Call generate_csv here after the user is redirected to the config endpoint
-    #generate_csv(f'static/upload/{uuid}/{uuid}.wav', output_csv, threshold)
     output_filename = filename[:-4]+".csv"
     output_filename = output_filename.replace(" ", "_")
 
@@ -104,7 +107,7 @@ def running(uuid, output_filename):
 
     while not os.path.exists(output_path):
         return render_template('running.html', uuid=uuid, output_filename=output_filename)
-        time.sleep(1)  # Wait for 1 second before checking again
+        time.sleep(1)
 
     return redirect(url_for('result', uuid=uuid, output_filename=output_filename))
 
@@ -125,15 +128,34 @@ def download(uuid,output_filename):
     else:
         return render_template('404.html'), 404
 
+@app.route('/summaries/<uuid>')
+def get_previous_summaries(uuid):
+    summaries = []
+    pattern = os.path.join('static', 'upload', uuid, 'summary-*.html')
+    for filename in glob.glob(pattern):
+        display_name = os.path.basename(filename).replace('summary-', '').replace('.html', '')
+        summaries.append({"filename": filename, "display_name": display_name})
+    return jsonify(summaries)
+
+def save_processes_to_file(processes):
+    with open('processes.json', 'w') as f:
+        json.dump(processes, f)
+
+def load_processes_from_file():
+    try:
+        with open('processes.json', 'r') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
+
+
 def create_app(logger_override=None):
     app = Flask(__name__)
 
     if logger_override:
-
         # working solely with the flask logger
         app.logger.handlers = logger_override.handlers
         app.logger.setLevel(logger_override.level)
-
 
         # for logger in (app.logger, logger.getLogger('main')):
         #     logger.handlers = logger_override.handlers
@@ -143,4 +165,5 @@ def create_app(logger_override=None):
 
 if __name__ == '__main__':
     app.run(debug=(os.getenv("DEBUG_MODE", "False") == "True"))
+    processes = load_processes_from_file()
 

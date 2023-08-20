@@ -206,17 +206,6 @@
         </form>
     </div>
 
-    <!--
-    Notes:
-        Additional options to add: (dropdown)
-            Channel selector
-            Downsampling rate
-            Number of buckets
-            -n number of peaks
-            web mode off
-            maybe height/width
-            video mode on
-    -->
     <script>
         document.getElementById("xwide").value = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0)
         document.getElementById("yhigh").value = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0)
@@ -243,11 +232,11 @@
     </script>
     </script>
 
-    <!--script>
+    <script>
         const thresholdInput = document.getElementById('threshold');
         const thresholdLabel = document.getElementById('thresholdLabel');
-        const roundnessInput = document.getElementById('roundness');
-        const roundnessLabel = document.getElementById('roundnessLabel');
+        //const roundnessInput = document.getElementById('roundness');
+        //const roundnessLabel = document.getElementById('roundnessLabel');
 
 
         // Update thresholdLabel with the current slider value
@@ -261,7 +250,7 @@
             thresholdLabel.appendChild(newThresholdLabel);
         });
 
-        // Update roundnessLabel with the current slider value
+        /* Update roundnessLabel with the current slider value
         roundnessInput.addEventListener('input', () => {
             // Remove the existing threshold label if it exists
             if (roundnessLabel.firstChild) {
@@ -270,7 +259,7 @@
 
             const newRoundnessLabel = document.createTextNode(roundnessInput.value);
             roundnessLabel.appendChild(newRoundnessLabel);
-        });
+        });*/
     </script-->
 
     <script>

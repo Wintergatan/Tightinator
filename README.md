@@ -7,7 +7,7 @@ The community has long since clamoured for automatic peak detection and generati
 
 ## View the live version
 
-A live workflow for detection and generation of timing data is live at [https://wtg.mcnulty.in](https://wtg.mcnulty.in)
+A workflow for detection and generation of timing data is live at [https://wtg.mcnulty.in](https://wtg.mcnulty.in)
 
 There is a 150M file size limit for upload, and working data will be removed after 7 days on disk.
 

@@ -148,7 +148,6 @@ def load_processes_from_file():
     except FileNotFoundError:
         return {}
 
-
 def create_app(logger_override=None):
     app = Flask(__name__)
 

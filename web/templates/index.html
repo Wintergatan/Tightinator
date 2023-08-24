@@ -16,6 +16,11 @@
             margin: 0;
         }
 
+        #header {
+            padding: 20px;
+            text-align: center;
+        }
+
         #dropArea {
             border: 2px dashed darkgrey;
             padding: 20px;
@@ -63,20 +68,63 @@
             text-decoration: none;
         }
 
+        #logoContainer {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        #logoImage {
+            max-width: 100%;
+            height: auto;
+            margin-bottom:10%;
+        }
+
+        the {
+            font-weight: bolder;
+            font-size: 5rem;
+        }
+
+        #rotatingImage {
+            margin-top:10%;
+            max-width: 20%;
+            height: auto;
+            transform-origin: center;
+            animation: rotateAnimation 5s alternate infinite ease-in-out;
+        }
+
+        @keyframes rotateAnimation {
+            0% {
+                transform: rotate(0deg);
+            }
+            50% {
+                transform: rotate(-60deg);
+            }
+            100% {
+                transform: rotate(0deg);
+            }
+        }
+
 
     </style>
 </head>
 <body>
-    <div id="dropArea">
-        <h1>Drag and Drop .wav file to upload</h1>
-        <form method="POST" enctype="multipart/form-data">
-            <input type="file" name="file" id="fileInput" accept=".wav" style="display:none;">
-        </form>
-        <button id="filePickerButton">Or choose file</button>
-        <i>   (150M limit)</i>
+
+    <div id="logoContainer">
+        <the>The</the>
+        <img id="logoImage" src="/static/assets/logo.png" alt="TIGHTINATOR">
+        <div id="dropArea">
+            <h1>Drag and Drop .wav file to upload</h1>
+            <form method="POST" enctype="multipart/form-data">
+                <input type="file" name="file" id="fileInput" accept=".wav" style="display:none;">
+            </form>
+            <button id="filePickerButton">Or choose file</button>
+            <i>   (150M limit)</i>
+        </div>
+        <img id="rotatingImage" src="/static/assets/sun-wilson.png" alt="Rotating Image">
     </div>
-
-
 
     <div id="loadingSpinner">
         <img id="spinnerImage" src="/static/assets/spinner.png" alt="Loading...">
@@ -94,6 +142,7 @@
     </a>
 
     <script>
+        const logoArea = document.getElementById('logoContainer');
         const dropArea = document.getElementById('dropArea');
         const fileInput = document.getElementById('fileInput');
         const loadingSpinner = document.getElementById('loadingSpinner');
@@ -115,6 +164,7 @@
 
                 // Show loading spinner and hide drop area
                 dropArea.style.display = 'none';
+                logoArea.style.display = 'none';
                 loadingSpinner.style.display = 'block';
 
                 const xhr = new XMLHttpRequest();
@@ -180,6 +230,7 @@
 
                 // Show loading spinner and hide drop area
                 dropArea.style.display = 'none';
+                logoArea.style.display = 'none';
                 loadingSpinner.style.display = 'block';
 
                 const xhr = new XMLHttpRequest();

@@ -121,6 +121,11 @@
             height: 100%;
             border: none;
         }
+
+
+        #logoImage {
+            max-width: 25%;
+        }
     </style>
 
 </head>
@@ -137,8 +142,9 @@
     {% endif %}
 
     {% if not failure %}
+    <img id="logoImage" src="/static/assets/logo.png" alt="TIGHTINATOR">
+    <h1>Peak detection results</h1>
         <div id="downloadLink">
-            <h1>Tightinator Peak Detection Results</h1>
             <a id="downloadButton" href="/download/{{ uuid }}/{{ output_filename }}">Download {{ output_filename }}</a>
             <a id="downloadButton" href="/download/{{ uuid }}/summary.html">Download plots</a>
             <a id="downloadButton" href="/config/{{ uuid }}/">Return to settings</a>

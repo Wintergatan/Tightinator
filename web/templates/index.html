@@ -23,7 +23,7 @@
 
         #dropArea {
             border: 2px dashed darkgrey;
-            padding: 20px;
+            padding: 30px;
             text-align: center;
         }
 
@@ -57,16 +57,40 @@
             color: green;
         }
 
-        #githubBadge {
+        #badgeContainer {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-top: 20px;
             position: absolute;
             bottom: 20px;
             right: 20px;
+        }
+
+        #githubBadge {
             background-color: #fff;
             color: black;
             padding: 5px 10px;
             border-radius: 10px;
             text-decoration: none;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
+
+        #mcnultyBadge {
+            padding: 5px 10px;
+            color: white;
+            text-decoration: none;
+            margin-right: 15px;
+            height: 20px;
+            border-radius: 10px;
+            background-color: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
 
         #logoContainer {
             display: flex;
@@ -135,11 +159,17 @@
 
     <div id="message" style="display: none;"></div>
 
-    <!-- GitHub badge link -->
-    <a href="https://github.com/YanFett/Wintergatan_data_analysis" id="githubBadge">
-        <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub Logo" style="width: 20px; vertical-align: middle;">
-        View source on GitHub
-    </a>
+    <div id="badgeContainer">
+        <a href="https://tom.mcnulty.in" id="mcnultyBadge">
+            <img src="/static/assets/mcnulty.png" alt="tom.mcnulty.in" style="width: 20px; margin-right: 10px;">
+            tom.mcnulty.in
+        </a>
+
+        <a href="https://github.com/YanFett/Wintergatan_data_analysis" id="githubBadge">
+            <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub Logo" style="width: 20px; vertical-align: middle;">
+            View source on GitHub
+        </a>
+    </div>
 
     <script>
         const logoArea = document.getElementById('logoContainer');

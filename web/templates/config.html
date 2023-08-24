@@ -230,14 +230,10 @@
             toggleAdvancedContainer.classList.toggle('expanded');
         });
     </script>
-    </script>
 
     <script>
         const thresholdInput = document.getElementById('threshold');
         const thresholdLabel = document.getElementById('thresholdLabel');
-        //const roundnessInput = document.getElementById('roundness');
-        //const roundnessLabel = document.getElementById('roundnessLabel');
-
 
         // Update thresholdLabel with the current slider value
         thresholdInput.addEventListener('input', () => {
@@ -250,17 +246,7 @@
             thresholdLabel.appendChild(newThresholdLabel);
         });
 
-        /* Update roundnessLabel with the current slider value
-        roundnessInput.addEventListener('input', () => {
-            // Remove the existing threshold label if it exists
-            if (roundnessLabel.firstChild) {
-                roundnessLabel.removeChild(roundnessLabel.firstChild);
-            }
-
-            const newRoundnessLabel = document.createTextNode(roundnessInput.value);
-            roundnessLabel.appendChild(newRoundnessLabel);
-        });*/
-    </script-->
+    </script>
 
     <script>
         const configForm = document.getElementById('configForm'); // Get the form element

@@ -44,13 +44,20 @@ def config(uuid, filename):
 
 @app.route('/config/<uuid>/', methods=['GET'])
 def rerun(uuid):
+    processes = load_processes_from_file()
     filename = processes[uuid]
     timestamp = time.strftime("%Y%m%d-%H%M%S")
-    os.rename("static/upload/{}/summary.html".format(uuid), "static/upload/{}/summary-{}.html".format(uuid, timestamp))
+
+    try:
+        os.rename("static/upload/{}/summary.html".format(uuid), "static/upload/{}/summary-{}.html".format(uuid, timestamp))
+    except Exception as e:
+        print(e)
+
     output_filename = filename[:-4]+".csv"
     output_filename = output_filename.replace(" ", "_")
 
     return render_template('config.html', uuid=uuid, filename=filename, output_filename=output_filename)
+
 
 @app.route('/run/<uuid>/', methods=['POST'])
 def run(uuid):
@@ -148,6 +155,10 @@ def load_processes_from_file():
     except FileNotFoundError:
         return {}
 
+@app.route('/favicon.ico')
+def favicon():
+    return send_from_directory(os.path.join(app.root_path, 'static/assets'),
+                               'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
 def create_app(logger_override=None):
     app = Flask(__name__)

@@ -16,7 +16,6 @@ from skimage.measure import block_reduce
 output_notebook()
 import os
 #import pdb; pdb.set_trace()
-import cProfile
 import random
 
 def normalize(array):
@@ -498,94 +497,94 @@ def plot_stat(fig, peakDiffs,peakHeights,meanDiff,stdDiff,bestpeakDiffs,bestmean
     fig.legend.location = 'top_right'
     return fig
 
-
-channel = 1
-downsamplerate = 1
-cutoff = 0.01
-threshold = 0.1
-full_width = 1000
-plot_height = 800
-exclusion = int(int(6400) / downsamplerate)
-chunksize = int(800/(2*downsamplerate))
-l_bestseries = 100
-bpm_window = 0
-bpm_target = 0
-
-    
-folder_path = "C:\python_projects\wtg_testdata"  # Replace with the actual path to your folder
-
-wav_files = [os.path.join(folder_path, file) for file in os.listdir(folder_path) if file.endswith(".wav")]
-random_index = random.randint(0, len(wav_files) - 1)
-Path = wav_files[random_index]
-
-
+def main():
+    channel = 1
+    downsamplerate = 1
+    cutoff = 0.01
+    threshold = 0.1
+    full_width = 1000
+    plot_height = 800
+    exclusion = int(int(6400) / downsamplerate)
+    chunksize = int(800/(2*downsamplerate))
+    l_bestseries = 100
+    bpm_window = 0
+    bpm_target = 0
 
         
-    
-signal, time, samplerate = loadwav(Path, channel, downsamplerate) #load the wav file, outputs a downsampled normalized signal of the selected channel, the corresponding time-xaxis and the samplerate
-roughpeakSamples, roughpeakHeights = roughpeaks(signal, threshold, exclusion) #searches for the highest peaks in the file, they need to have a min height of threshold and a min distance of exclusion
-peakSamples, peakHeights =peakrefiner_center_of_weight(signal, roughpeakSamples, chunksize) #refines the rough peaks found before by centering them on their center of weight
-correlation = True
-if(correlation):
-    peakSamples, peakHeights =peakrefiner_correlation(signal, peakSamples, chunksize//2) #further refines the peaks by applying a correlation method to find the point of best overlap with current average
-peakSamples, peakHeights =peakrefiner_maximum_right(signal, peakSamples, chunksize//8) #looks for a maximum in a very small window around the refined peak
+    folder_path = "C:\python_projects\wtg_testdata"  # Replace with the actual path to your folder
+
+    wav_files = [os.path.join(folder_path, file) for file in os.listdir(folder_path) if file.endswith(".wav")]
+    random_index = random.randint(0, len(wav_files) - 1)
+    Path = wav_files[random_index]
+
+
+
+            
+        
+    signal, time, samplerate = loadwav(Path, channel, downsamplerate) #load the wav file, outputs a downsampled normalized signal of the selected channel, the corresponding time-xaxis and the samplerate
+    roughpeakSamples, roughpeakHeights = roughpeaks(signal, threshold, exclusion) #searches for the highest peaks in the file, they need to have a min height of threshold and a min distance of exclusion
+    peakSamples, peakHeights =peakrefiner_center_of_weight(signal, roughpeakSamples, chunksize) #refines the rough peaks found before by centering them on their center of weight
+    correlation = True
+    if(correlation):
+        peakSamples, peakHeights =peakrefiner_correlation(signal, peakSamples, chunksize//2) #further refines the peaks by applying a correlation method to find the point of best overlap with current average
+    peakSamples, peakHeights =peakrefiner_maximum_right(signal, peakSamples, chunksize//8) #looks for a maximum in a very small window around the refined peak
 
 
 
 
 
-### calculate all sorts of data
+    ### calculate all sorts of data
 
-peakTimes = time[peakSamples]
-peakDiffs = np.diff(peakTimes)
-meanDiff = np.mean(peakDiffs)
-stdDiff = np.std(peakDiffs)
-peakBPM = (60*1000)/peakDiffs
-meanBPM = np.mean(peakBPM)
-stdBPM = np.std(peakBPM)
-peakTimeMiddles = (peakTimes[:-1] + peakTimes[1:]) / 2
-peakAccel = np.gradient(peakDiffs)
-peakAccelBPM = np.gradient(peakBPM)
-peakAccelDiff = np.diff(peakAccel)
+    peakTimes = time[peakSamples]
+    peakDiffs = np.diff(peakTimes)
+    meanDiff = np.mean(peakDiffs)
+    stdDiff = np.std(peakDiffs)
+    peakBPM = (60*1000)/peakDiffs
+    meanBPM = np.mean(peakBPM)
+    stdBPM = np.std(peakBPM)
+    peakTimeMiddles = (peakTimes[:-1] + peakTimes[1:]) / 2
+    peakAccel = np.gradient(peakDiffs)
+    peakAccelBPM = np.gradient(peakBPM)
+    peakAccelDiff = np.diff(peakAccel)
 
 
-### find the best series
-begin_best, l_bestseries = find_chunk_with_lowest_std(peakSamples, l_bestseries)
-bestpeakNumbers = np.arange(l_bestseries)+begin_best
+    ### find the best series
+    begin_best, l_bestseries = find_chunk_with_lowest_std(peakSamples, l_bestseries)
+    bestpeakNumbers = np.arange(l_bestseries)+begin_best
 
-### calculate all sorts of data for the best series
-bestpeakSamples = peakSamples[bestpeakNumbers]
-bestpeakHeights = signal[bestpeakSamples]
-bestpeakTimes = time[bestpeakSamples]
-bestpeakDiffs = np.diff(bestpeakTimes)
-bestmeanDiff = np.mean(bestpeakDiffs)
-beststdDiff = np.std(bestpeakDiffs)
-bestpeakBPM = (60*1000)/bestpeakDiffs
-bestmeanBPM = np.mean(bestpeakBPM)
-beststdBPM = np.std(bestpeakBPM)
-bestpeakTimeMiddles = (bestpeakTimes[:-1] + bestpeakTimes[1:]) / 2
-bestpeakAccel = np.gradient(bestpeakDiffs)
-bestpeakAccelBPM = np.gradient(bestpeakBPM)
-bestpeakAccelDiff = np.diff(bestpeakAccel)
+    ### calculate all sorts of data for the best series
+    bestpeakSamples = peakSamples[bestpeakNumbers]
+    bestpeakHeights = signal[bestpeakSamples]
+    bestpeakTimes = time[bestpeakSamples]
+    bestpeakDiffs = np.diff(bestpeakTimes)
+    bestmeanDiff = np.mean(bestpeakDiffs)
+    beststdDiff = np.std(bestpeakDiffs)
+    bestpeakBPM = (60*1000)/bestpeakDiffs
+    bestmeanBPM = np.mean(bestpeakBPM)
+    beststdBPM = np.std(bestpeakBPM)
+    bestpeakTimeMiddles = (bestpeakTimes[:-1] + bestpeakTimes[1:]) / 2
+    bestpeakAccel = np.gradient(bestpeakDiffs)
+    bestpeakAccelBPM = np.gradient(bestpeakBPM)
+    bestpeakAccelDiff = np.diff(bestpeakAccel)
 
-full_width_p = full_width * 2
+    full_width_p = full_width * 2
 
-### make similarness plot
-fig_center = figure(title='Similarness plot - most consistent Beats', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]', width=int(np.floor(full_width_p/2)), height=plot_height)
-fig_center.output_backend = 'webgl'
-center_fig = plot_centered(fig_center,signal,time,peakSamples, bestpeakSamples,chunksize,meanDiff,stdDiff,bestmeanDiff,beststdDiff)
+    ### make similarness plot
+    fig_center = figure(title='Similarness plot - most consistent Beats', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]', width=int(np.floor(full_width_p/2)), height=plot_height)
+    fig_center.output_backend = 'webgl'
+    center_fig = plot_centered(fig_center,signal,time,peakSamples, bestpeakSamples,chunksize,meanDiff,stdDiff,bestmeanDiff,beststdDiff)
 
-### make stat plot
-fig_stat = figure(title='Statistics plot - most consistent Beats', x_axis_label='Transient Time difference [ms]', y_axis_label='Probability density[1/ms]', width=int(np.floor(full_width_p/2)), height=plot_height)
-fig_stat.output_backend = 'webgl'
-stat_fig = plot_stat(fig_stat, peakDiffs,peakHeights,meanDiff,stdDiff,bestpeakDiffs,bestmeanDiff,beststdDiff)
+    ### make stat plot
+    fig_stat = figure(title='Statistics plot - most consistent Beats', x_axis_label='Transient Time difference [ms]', y_axis_label='Probability density[1/ms]', width=int(np.floor(full_width_p/2)), height=plot_height)
+    fig_stat.output_backend = 'webgl'
+    stat_fig = plot_stat(fig_stat, peakDiffs,peakHeights,meanDiff,stdDiff,bestpeakDiffs,bestmeanDiff,beststdDiff)
 
-### make waveform plot
-fig_wave = figure(title='Waveform plot', x_axis_label='Time [s]', y_axis_label='Amplitude [a.u.]', width=full_width_p, height=plot_height)
-fig_wave.output_backend = 'webgl'
-plot_waveform(fig_wave,signal,time, time[peakSamples],signal[peakSamples], bestpeakTimes, peakTimeMiddles, peakDiffs, peakBPM, peakAccelBPM, bestmeanBPM, beststdBPM, bpm_window, bpm_target, threshold)
+    ### make waveform plot
+    fig_wave = figure(title='Waveform plot', x_axis_label='Time [s]', y_axis_label='Amplitude [a.u.]', width=full_width_p, height=plot_height)
+    fig_wave.output_backend = 'webgl'
+    plot_waveform(fig_wave,signal,time, time[peakSamples],signal[peakSamples], bestpeakTimes, peakTimeMiddles, peakDiffs, peakBPM, peakAccelBPM, bestmeanBPM, beststdBPM, bpm_window, bpm_target, threshold)
 
-### plot it
-layout = column(fig_wave, row(fig_center, stat_fig))
-#output_file("summary.html", title="Summary Page")
-show(layout)
+    ### plot it
+    layout = column(fig_wave, row(fig_center, stat_fig))
+    output_file("summary.html", title="Summary Page")
+    show(layout)

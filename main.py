@@ -1,22 +1,175 @@
 import numpy as np
 from bokeh.plotting import figure, show, output_file, save
-from bokeh.io import output_notebook
 from bokeh.models import LinearAxis, Range1d, Label, Legend, LinearColorMapper
 from bokeh.layouts import row, column
 from bokeh.transform import linear_cmap
-from peakutils.peak import indexes as indexesss
-from scipy import integrate
 from scipy.io import wavfile
 from scipy.signal import find_peaks, correlate
-from scipy.interpolate import LSQUnivariateSpline
-from scipy.ndimage import uniform_filter1d
 import argparse
 import logging
-from skimage.measure import block_reduce
-output_notebook()
+#from skimage.measure import block_reduce
 import os
-#import pdb; pdb.set_trace()
 import random
+
+filename = ''
+output_filename = ''
+threshold = ''
+channel = ''
+chunksize = ''
+exclusion = ''
+float_prec = ''
+len_series = ''
+work_dir = ''
+l_bestseries = ''
+web_mode = False
+x_wide = ''
+y_high = ''
+bpm_target = ''
+bpm_window = ''
+
+
+parser = argparse.ArgumentParser(description='Map transient times')
+parser.add_argument('-f', '--file', dest='filename', type=str, action='store', help='File to open')
+parser.add_argument('-o', '--out', dest='output_filename', type=str, action='store', help='Filename to write output values to')
+parser.add_argument('-t', '--threshold', dest='threshold', default='0.1', type=float, action='store', help='DEFAULT=0.1 Peak detection threshold. Works best 0.1 and above. Setting too high/low can cause misdetection.')
+parser.add_argument('-c', '--channel', dest='channel', default='1', type=int, action='store', help='DEFAULT=1 Channel to get the waveform from.')
+parser.add_argument('-cz', '--chunksize', dest='chunksize', default='400', type=int, action='store', help='DEFAULT=400 Basissize of the chunks used for peakfinding.')
+parser.add_argument('-ex', '--exclusion', dest='exclusion', default='6400', type=int, action='store', help='DEFAULT=6400 Minimum distance between peaks.')
+parser.add_argument('-r', '--precision', dest='float_prec', default='6', type=int, action='store', help='DEFAULT=6 Number of decimal places to round measurements to. Ex: -p 6 = 261.51927438')
+parser.add_argument('-l', '--length', dest='l_bestseries', default='100', type=int, action='store', help='DEFAULT=100 The length of the series of most consistent beats.')
+parser.add_argument('-w', '--web', dest='web_mode', default=False, action='store_true', help='DEFAULT=False Get some width/height values from/ browser objects for graphing. Defaults false.')
+parser.add_argument('-b', '--bpm-target', dest='bpm_target', default='0', type=float, action='store', help='DEFAULT=0 The target BPM of the song. Use 0 for auto.')
+parser.add_argument('-bw', '--bpm-window', dest='bpm_window', default='0', type=float, action='store', help='DEFAULT=0 Window of BPM that should be visible around the target. Will be scaled to 75%% target height if 0. Default 0.')
+parser.add_argument('--work-dir', dest='work_dir', action='store', help='Directory structure to work under.' )
+parser.add_argument('-x', '--x-width', dest='x_wide', default='2000', type=int, action='store', help='DEFAULT=2000 Fixed width for graphs.')
+parser.add_argument('-y', '--plot-height', dest='y_high', default='1340', type=int, action='store', help='DEFAULT=600 Fixed height for single plot.')
+parser.add_argument('-v', '--verbose', help="Set debug logging", action='store_true')
+
+args = parser.parse_args()
+
+def main():
+    logging.info(args)
+    if args.verbose:
+        print(args)
+        # Set logging level - https://docs.python.org/3/howto/logging.html#logging-basic-tutorial
+        logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+    else:
+        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+    # User configuration values
+    filename = args.filename
+    channel = args.channel
+    threshold = args.threshold
+    exclusion = args.exclusion
+
+    float_prec = args.float_prec
+    l_bestseries = args.l_bestseries
+    chunksize = args.chunksize
+    full_width = args.x_wide# - 15
+    plot_height = args.y_high
+    bpm_target = args.bpm_target    
+    bpm_window = args.bpm_window
+
+    plot_height = int((plot_height-140)/2)
+
+    # If output_filename argument not set use the uploaded filename + .csv
+    if not args.output_filename:
+        output_filename = filename[:-4]+".csv"
+    else:
+        output_filename = args.output_filename
+
+    # If web mode add the work dir to the filenames
+    if args.web_mode:
+        if not args.work_dir:
+            work_dir = 'static/upload/test/'
+        else:
+            work_dir = args.work_dir
+            filename = work_dir + filename
+            output_filename = work_dir + output_filename
+            print("{}, {}".format(filename, output_filename))
+
+    signal, time, samplerate = loadwav(filename, channel) #load the wav file, outputs a normalized signal of the selected channel, the corresponding time-xaxis and the samplerate
+    roughpeakSamples, roughpeakHeights = roughpeaks(signal, threshold, exclusion) #searches for the highest peaks in the file, they need to have a min height of threshold and a min distance of exclusion
+    peakSamples, peakHeights =peakrefiner_center_of_weight(signal, roughpeakSamples, chunksize) #refines the rough peaks found before by centering them on their center of weight
+    correlation = True
+    if(correlation):
+        peakSamples, peakHeights =peakrefiner_correlation(signal, peakSamples, chunksize//2) #further refines the peaks by applying a correlation method to find the point of best overlap with current average
+    peakSamples, peakHeights =peakrefiner_maximum_right(signal, peakSamples, chunksize//8) #looks for a maximum in a very small window around the refined peak
+
+
+
+
+
+    ### calculate all sorts of data
+
+    peakTimes = time[peakSamples]
+    peakDiffs = np.diff(peakTimes)
+    meanDiff = np.mean(peakDiffs)
+    stdDiff = np.std(peakDiffs)
+    peakBPM = (60*1000)/peakDiffs
+    meanBPM = np.mean(peakBPM)
+    stdBPM = np.std(peakBPM)
+    peakTimeMiddles = (peakTimes[:-1] + peakTimes[1:]) / 2
+    peakAccel = np.gradient(peakDiffs)
+    peakAccelBPM = np.gradient(peakBPM)
+    peakAccelDiff = np.diff(peakAccel)
+
+
+    ### find the best series
+    begin_best, l_bestseries = find_chunk_with_lowest_std(peakSamples, l_bestseries)
+    bestpeakNumbers = np.arange(l_bestseries)+begin_best
+
+    ### calculate all sorts of data for the best series
+    bestpeakSamples = peakSamples[bestpeakNumbers]
+    bestpeakHeights = signal[bestpeakSamples]
+    bestpeakTimes = time[bestpeakSamples]
+    bestpeakDiffs = np.diff(bestpeakTimes)
+    bestmeanDiff = np.mean(bestpeakDiffs)
+    beststdDiff = np.std(bestpeakDiffs)
+    bestpeakBPM = (60*1000)/bestpeakDiffs
+    bestmeanBPM = np.mean(bestpeakBPM)
+    beststdBPM = np.std(bestpeakBPM)
+    bestpeakTimeMiddles = (bestpeakTimes[:-1] + bestpeakTimes[1:]) / 2
+    bestpeakAccel = np.gradient(bestpeakDiffs)
+    bestpeakAccelBPM = np.gradient(bestpeakBPM)
+    bestpeakAccelDiff = np.diff(bestpeakAccel)
+
+ 
+    
+    ### export csv
+    stdev = np.zeros(len(peakSamples))
+    stdev[0] = beststdDiff              #the standard deviation of the differences in the best series
+    stdev[1] = stdDiff                  #the standard deviation of all peak differences
+    stdev[3] = np.min(bestpeakNumbers)  #the start of the best series
+    stdev[4] = np.max(bestpeakNumbers)  #the end of the best series
+    stdev[5] = len(peakSamples)        #the number of peaks
+    stdev[7] = threshold                #the threshold used in recording the data
+    combined_array = pad_and_stack_arrays([peakTimes,peakDiffs,bestpeakTimes,bestpeakDiffs,stdev])
+    logging.info("Saving output values to {}".format(output_filename))
+    np_fmt = "%1.{}f".format(float_prec)
+    np.savetxt(output_filename, combined_array, delimiter=",", header="PeakTimes[ms],PeakDifferences[ms],BestTimes[ms],BestDifferrences[ms],data", fmt=np_fmt, comments="")
+
+
+    ### make similarness plot
+    fig_center = figure(title='Similarness plot - most consistent Beats', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]', width=int(np.floor(full_width/2)), height=plot_height)
+    fig_center.output_backend = 'webgl'
+    center_fig = plot_centered(fig_center,signal,time,peakSamples, bestpeakSamples,chunksize,meanDiff,stdDiff,bestmeanDiff,beststdDiff)
+
+    ### make stat plot
+    fig_stat = figure(title='Statistics plot - most consistent Beats', x_axis_label='Transient Time difference [ms]', y_axis_label='Probability density[1/ms]', width=int(np.floor(full_width/2)), height=plot_height)
+    fig_stat.output_backend = 'webgl'
+    stat_fig = plot_stat(fig_stat, peakDiffs,peakHeights,meanDiff,stdDiff,bestpeakDiffs,bestpeakHeights,bestmeanDiff,beststdDiff)
+
+    ### make waveform plot
+    fig_wave = figure(title='Waveform plot', x_axis_label='Time [s]', y_axis_label='Amplitude [a.u.]', width=full_width, height=plot_height)
+    fig_wave.output_backend = 'webgl'
+    plot_waveform(fig_wave,signal,time, time[peakSamples],signal[peakSamples], bestpeakTimes, peakTimeMiddles, peakDiffs, peakBPM, peakAccelBPM, bestmeanBPM, beststdBPM, bpm_window, bpm_target, threshold)
+
+    ### plot it
+    layout = column(fig_wave, row(fig_center, stat_fig))
+    output_file("summary.html", title="Summary Page")
+    show(layout)
+
 
 def normalize(array):
     """Normalizes the input array, so that max(array) = 1
@@ -33,7 +186,7 @@ def normalize(array):
     """
     return np.abs(array / np.max(np.abs(array)))
 
-def loadwav(Path, channel, downsamplerate):
+def loadwav(Path, channel):
     """loads a wav file, selects a channel and downsamples it
 
     Parameters
@@ -63,10 +216,11 @@ def loadwav(Path, channel, downsamplerate):
         amplitude_data = data[:,channel-1] # First channel has to be 1, only programmers know things start at 0
     else:
         amplitude_data = data
-    reduced_signal = block_reduce(amplitude_data,(downsamplerate,) , np.mean)
+    #reduced_signal = block_reduce(amplitude_data,(downsamplerate,) , np.mean)
+    reduced_signal = amplitude_data
     signal = normalize(reduced_signal)
     samplerate = sample_rate
-    timefactor = (sample_rate/downsamplerate)/1000
+    timefactor = sample_rate/1000
     time = np.arange(0, len(signal))/timefactor
     return signal, time, samplerate
 
@@ -90,7 +244,6 @@ def roughpeaks(signal, threshold, exclusion):
     peakHeight : array
         height of the peaks in peakSamples
     """
-    #peakSamples = indexesss(signal, thres=threshold,min_dist = exclusion)
     peakSamples, _ = find_peaks(signal, prominence=threshold,distance = exclusion)
     return peakSamples, signal[peakSamples]
     
@@ -367,7 +520,7 @@ def plotchunksim(chunks,time,chunksize, full_width, plot_height):
     y_range_end = min(2,np.max(ys))
     fig_wave.y_range = Range1d(start=y_range_start, end=y_range_end)  # Set the y-range of the left y-axis
 
-def plot_waveform(fig,signal,time, peakTimes, peakHeights, bestpeakTimes, peakTimeMiddles, peakDiffs, peakBPM, peakAccelBPM, bestmeanBPM, beststdBPM, bpm_window, bpm_target, treshold):
+def plot_waveform(fig,signal,time, peakTimes, peakHeights, bestpeakTimes, peakTimeMiddles, peakDiffs, peakBPM, peakAccelBPM, bestmeanBPM, beststdBPM, bpm_window, bpm_target, threshold):
     cutoff = 0.01
     signalc = signal[signal >cutoff]
     timec = time[signal >cutoff]/1000
@@ -406,10 +559,10 @@ def plot_waveform(fig,signal,time, peakTimes, peakHeights, bestpeakTimes, peakTi
     
     x_coordinate = np.min(bestpeakTimes)/1000
 
-    fig_wave.line(x=[x_coordinate,x_coordinate], y=[0,1], line_width=2, line_dash="dashed", line_color="black", legend_label= 'Segment of most consistent Beats')
+    fig.line(x=[x_coordinate,x_coordinate], y=[0,1], line_width=2, line_dash="dashed", line_color="black", legend_label= 'Segment of most consistent Beats')
     x_coordinate = np.max(bestpeakTimes)/1000
     
-    fig_wave.line(x=[x_coordinate,x_coordinate], y=[0,1], line_width=2, line_dash="dashed", line_color="black")
+    fig.line(x=[x_coordinate,x_coordinate], y=[0,1], line_width=2, line_dash="dashed", line_color="black")
 
     fig.x_range.start = 0
     fig.x_range.end = timec[-1]
@@ -421,7 +574,7 @@ def plot_waveform(fig,signal,time, peakTimes, peakHeights, bestpeakTimes, peakTi
     fig.add_layout(text_annotation1)
 
 def plot_centered(fig, signal, time,peakSamples, bestpeakSamples,chunksize,meanDiff,stdDiff,bestmeanDiff,beststdDiff):
-    cutoff = -1
+    cutoff = 0.01
     not_bestpeakSamples = np.setdiff1d(peakSamples, bestpeakSamples)
     not_chunks = peakchunks(signal, not_bestpeakSamples , chunksize)
     xs, ys, ys2, peakheights = [], [], [], []
@@ -457,7 +610,7 @@ def plot_centered(fig, signal, time,peakSamples, bestpeakSamples,chunksize,meanD
     fig.y_range.end = max_yrange
     fig.xaxis.ticker.num_minor_ticks = 9
 
-def plot_stat(fig, peakDiffs,peakHeights,meanDiff,stdDiff,bestpeakDiffs,bestmeanDiff,beststdDiff):
+def plot_stat(fig, peakDiffs,peakHeights,meanDiff,stdDiff,bestpeakDiffs,bestpeakHeights,bestmeanDiff,beststdDiff):
 
     num_bins = int(1 + (3.322 * np.log(len(bestpeakDiffs))))
     x_data = bestpeakDiffs
@@ -497,94 +650,16 @@ def plot_stat(fig, peakDiffs,peakHeights,meanDiff,stdDiff,bestpeakDiffs,bestmean
     fig.legend.location = 'top_right'
     return fig
 
-def main():
-    channel = 1
-    downsamplerate = 1
-    cutoff = 0.01
-    threshold = 0.1
-    full_width = 1000
-    plot_height = 800
-    exclusion = int(int(6400) / downsamplerate)
-    chunksize = int(800/(2*downsamplerate))
-    l_bestseries = 100
-    bpm_window = 0
-    bpm_target = 0
-
-        
-    folder_path = "C:\python_projects\wtg_testdata"  # Replace with the actual path to your folder
-
-    wav_files = [os.path.join(folder_path, file) for file in os.listdir(folder_path) if file.endswith(".wav")]
-    random_index = random.randint(0, len(wav_files) - 1)
-    Path = wav_files[random_index]
+def pad_and_stack_arrays(arrays):
+    # Find the length of the longest array
+    max_length = max(len(arr) for arr in arrays)
+    
+    # Pad shorter arrays and stack them
+    padded_arrays = [np.pad(arr, (0, max_length - len(arr)), mode='constant') for arr in arrays]
+    stacked_array = np.column_stack(padded_arrays)
+    
+    return stacked_array
 
 
-
-            
-        
-    signal, time, samplerate = loadwav(Path, channel, downsamplerate) #load the wav file, outputs a downsampled normalized signal of the selected channel, the corresponding time-xaxis and the samplerate
-    roughpeakSamples, roughpeakHeights = roughpeaks(signal, threshold, exclusion) #searches for the highest peaks in the file, they need to have a min height of threshold and a min distance of exclusion
-    peakSamples, peakHeights =peakrefiner_center_of_weight(signal, roughpeakSamples, chunksize) #refines the rough peaks found before by centering them on their center of weight
-    correlation = True
-    if(correlation):
-        peakSamples, peakHeights =peakrefiner_correlation(signal, peakSamples, chunksize//2) #further refines the peaks by applying a correlation method to find the point of best overlap with current average
-    peakSamples, peakHeights =peakrefiner_maximum_right(signal, peakSamples, chunksize//8) #looks for a maximum in a very small window around the refined peak
-
-
-
-
-
-    ### calculate all sorts of data
-
-    peakTimes = time[peakSamples]
-    peakDiffs = np.diff(peakTimes)
-    meanDiff = np.mean(peakDiffs)
-    stdDiff = np.std(peakDiffs)
-    peakBPM = (60*1000)/peakDiffs
-    meanBPM = np.mean(peakBPM)
-    stdBPM = np.std(peakBPM)
-    peakTimeMiddles = (peakTimes[:-1] + peakTimes[1:]) / 2
-    peakAccel = np.gradient(peakDiffs)
-    peakAccelBPM = np.gradient(peakBPM)
-    peakAccelDiff = np.diff(peakAccel)
-
-
-    ### find the best series
-    begin_best, l_bestseries = find_chunk_with_lowest_std(peakSamples, l_bestseries)
-    bestpeakNumbers = np.arange(l_bestseries)+begin_best
-
-    ### calculate all sorts of data for the best series
-    bestpeakSamples = peakSamples[bestpeakNumbers]
-    bestpeakHeights = signal[bestpeakSamples]
-    bestpeakTimes = time[bestpeakSamples]
-    bestpeakDiffs = np.diff(bestpeakTimes)
-    bestmeanDiff = np.mean(bestpeakDiffs)
-    beststdDiff = np.std(bestpeakDiffs)
-    bestpeakBPM = (60*1000)/bestpeakDiffs
-    bestmeanBPM = np.mean(bestpeakBPM)
-    beststdBPM = np.std(bestpeakBPM)
-    bestpeakTimeMiddles = (bestpeakTimes[:-1] + bestpeakTimes[1:]) / 2
-    bestpeakAccel = np.gradient(bestpeakDiffs)
-    bestpeakAccelBPM = np.gradient(bestpeakBPM)
-    bestpeakAccelDiff = np.diff(bestpeakAccel)
-
-    full_width_p = full_width * 2
-
-    ### make similarness plot
-    fig_center = figure(title='Similarness plot - most consistent Beats', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]', width=int(np.floor(full_width_p/2)), height=plot_height)
-    fig_center.output_backend = 'webgl'
-    center_fig = plot_centered(fig_center,signal,time,peakSamples, bestpeakSamples,chunksize,meanDiff,stdDiff,bestmeanDiff,beststdDiff)
-
-    ### make stat plot
-    fig_stat = figure(title='Statistics plot - most consistent Beats', x_axis_label='Transient Time difference [ms]', y_axis_label='Probability density[1/ms]', width=int(np.floor(full_width_p/2)), height=plot_height)
-    fig_stat.output_backend = 'webgl'
-    stat_fig = plot_stat(fig_stat, peakDiffs,peakHeights,meanDiff,stdDiff,bestpeakDiffs,bestmeanDiff,beststdDiff)
-
-    ### make waveform plot
-    fig_wave = figure(title='Waveform plot', x_axis_label='Time [s]', y_axis_label='Amplitude [a.u.]', width=full_width_p, height=plot_height)
-    fig_wave.output_backend = 'webgl'
-    plot_waveform(fig_wave,signal,time, time[peakSamples],signal[peakSamples], bestpeakTimes, peakTimeMiddles, peakDiffs, peakBPM, peakAccelBPM, bestmeanBPM, beststdBPM, bpm_window, bpm_target, threshold)
-
-    ### plot it
-    layout = column(fig_wave, row(fig_center, stat_fig))
-    output_file("summary.html", title="Summary Page")
-    show(layout)
+if __name__ == '__main__':
+    main()

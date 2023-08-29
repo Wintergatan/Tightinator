@@ -80,8 +80,6 @@ def run(uuid):
         '--work-dir', "static/upload/{}/".format(uuid),
         '-f', filename,
         '-o', output_filename,
-        '-d', downsample_rate,
-        '-a', alg,
         '-b', bpm,
         '-bw', bpmWin,
         '-t', threshold,

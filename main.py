@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+
 import numpy as np
 from bokeh.plotting import figure, show, output_file, save
 from bokeh.models import LinearAxis, Range1d, Label, Legend, LinearColorMapper
@@ -167,8 +169,15 @@ def main():
 
     ### plot it
     layout = column(fig_wave, row(fig_center, stat_fig))
-    output_file("summary.html", title="Summary Page")
-    show(layout)
+    if args.web_mode:
+        print("Writing graphs to {}summary.html".format(work_dir))
+        output_file("summary.html".format(work_dir), title="Summary Page")
+
+        save(layout)
+    else:
+        output_file("summary.html", title="Summary Page")
+        show(layout)
+
 
 
 def normalize(array):

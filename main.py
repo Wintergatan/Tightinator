@@ -28,7 +28,7 @@ x_wide = ''
 y_high = ''
 bpm_target = ''
 bpm_window = ''
-
+correlation = True
 
 parser = argparse.ArgumentParser(description='Map transient times')
 parser.add_argument('-f', '--file', dest='filename', type=str, action='store', help='File to open')
@@ -40,6 +40,7 @@ parser.add_argument('-ex', '--exclusion', dest='exclusion', default='6400', type
 parser.add_argument('-r', '--precision', dest='float_prec', default='6', type=int, action='store', help='DEFAULT=6 Number of decimal places to round measurements to. Ex: -p 6 = 261.51927438')
 parser.add_argument('-l', '--length', dest='l_bestseries', default='100', type=int, action='store', help='DEFAULT=100 The length of the series of most consistent beats.')
 parser.add_argument('-w', '--web', dest='web_mode', default=False, action='store_true', help='DEFAULT=False Get some width/height values from/ browser objects for graphing. Defaults false.')
+parser.add_argument('-cp', '--correlation', dest='correlation', default=True, action='store_false', help='DEFAULT=True Decide whether correlation is used as a peakfinder. Defaults True.')
 parser.add_argument('-b', '--bpm-target', dest='bpm_target', default='0', type=float, action='store', help='DEFAULT=0 The target BPM of the song. Use 0 for auto.')
 parser.add_argument('-bw', '--bpm-window', dest='bpm_window', default='0', type=float, action='store', help='DEFAULT=0 Window of BPM that should be visible around the target. Will be scaled to 75%% target height if 0. Default 0.')
 parser.add_argument('--work-dir', dest='work_dir', action='store', help='Directory structure to work under.' )
@@ -67,6 +68,7 @@ def main():
     float_prec = args.float_prec
     l_bestseries = args.l_bestseries
     chunksize = args.chunksize
+    correlation = args.correlation
     full_width = args.x_wide# - 15
     plot_height = args.y_high
     bpm_target = args.bpm_target    
@@ -92,8 +94,7 @@ def main():
 
     signal, time, samplerate = loadwav(filename, channel) #load the wav file, outputs a normalized signal of the selected channel, the corresponding time-xaxis and the samplerate
     roughpeakSamples, roughpeakHeights = roughpeaks(signal, threshold, exclusion) #searches for the highest peaks in the file, they need to have a min height of threshold and a min distance of exclusion
-    peakSamples, peakHeights =peakrefiner_center_of_weight(signal, roughpeakSamples, chunksize) #refines the rough peaks found before by centering them on their center of weight
-    correlation = True
+    peakSamples, peakHeights =peakrefiner_center_of_weight(signal, roughpeakSamples, chunksize) #refines the rough peaks found before by centering them on their center of weight 
     if(correlation):
         peakSamples, peakHeights =peakrefiner_correlation(signal, peakSamples, chunksize//2) #further refines the peaks by applying a correlation method to find the point of best overlap with current average
     peakSamples, peakHeights =peakrefiner_maximum_right(signal, peakSamples, chunksize//8) #looks for a maximum in a very small window around the refined peak

@@ -36,7 +36,7 @@ parser.add_argument('-o', '--out', dest='output_filename', type=str, action='sto
 parser.add_argument('-t', '--threshold', dest='threshold', default='0.1', type=float, action='store', help='DEFAULT=0.1 Peak detection threshold. Works best 0.1 and above. Setting too high/low can cause misdetection.')
 parser.add_argument('-c', '--channel', dest='channel', default='1', type=int, action='store', help='DEFAULT=1 Channel to get the waveform from.')
 parser.add_argument('-cz', '--chunksize', dest='chunk_size', default='400', type=int, action='store', help='DEFAULT=400 Basissize of the chunks used for peakfinding.')
-parser.add_argument('-ex', '--exclusion', dest='exclusion', default='6400', type=int, action='store', help='DEFAULT=6400 Minimum distance between peaks.')
+parser.add_argument('-ex', '--exclusion', dest='exclusion', default='150', type=int, action='store', help='DEFAULT=150 Minimum distance between peaks in ms.')
 parser.add_argument('-r', '--precision', dest='float_prec', default='6', type=int, action='store', help='DEFAULT=6 Number of decimal places to round measurements to. Ex: -p 6 = 261.51927438')
 parser.add_argument('-l', '--length', dest='l_bestseries', default='100', type=int, action='store', help='DEFAULT=100 The length of the series of most consistent beats.')
 parser.add_argument('-w', '--web', dest='web_mode', default=False, action='store_true', help='DEFAULT=False Get some width/height values from/ browser objects for graphing. Defaults false.')
@@ -93,7 +93,8 @@ def main():
             print("{}, {}".format(filename, output_filename))
 
     signal, time, sample_rate = load_wav(filename, channel) #load the wav file, outputs a normalized signal of the selected channel, the corresponding time-xaxis and the sample_rate
-    peaks = rough_peaks(signal, time, threshold, exclusion) #searches for the highest peaks in the file, they need to have a min height of threshold and a min distance of exclusion
+    exclusion_samples = (exclusion*sample_rate/1000) #calculate exclusion in samples from exclusion in ms
+    peaks = rough_peaks(signal, time, threshold, exclusion_samples) #searches for the highest peaks in the file, they need to have a min height of threshold and a min distance of exclusion
     peaks = peakrefiner_center_of_weight(signal, time, peaks, chunk_size) #refines the rough peaks found before by centering them on their center of weight 
     if(correlation):
         peaks = peakrefiner_correlation(signal, time, peaks, chunk_size//2) #further refines the peaks by applying a correlation method to find the point of best overlap with current average
@@ -263,7 +264,7 @@ def load_wav(Path, channel):
         amplitude_data = data[:,channel-1] # First channel has to be 1, only programmers know things start at 0
     else:
         amplitude_data = data
-    #reduced_signal = block_reduce(amplitude_data,(downsample_rate,) , np.mean)
+    #reduced_signal = block_reduce(amplitude_data,(downsample_rate,), np.mean)
     reduced_signal = amplitude_data
     signal = np.abs(reduced_signal / np.max(np.abs(reduced_signal)))
     sample_rate = sample_rate
@@ -284,7 +285,7 @@ def rough_peaks(signal, time, threshold, exclusion):
     threshold : float
         Lower bound of when a peak is concidered a peak.   
     exclusion : int
-        Size of the window that excludes other peaks.
+        Size of the window that excludes other peaks in samples.
 
     Returns
     -------
@@ -652,7 +653,7 @@ def plot_waveform(fig, signal, time, peaks, best_peaks, bpm_window, bpm_target, 
     fig.add_layout(LinearAxis(y_range_name="peak_diff_range", axis_label="BPM [Hz]"), 'right')  # Add the right y-axis
     fig.vbar(x=peak_second_middles, top=peaks["BPM"], width=(peak_second_diffs) * 0.9, y_range_name="peak_diff_range", color = 'green', fill_alpha=1, legend_label='BPM')
     fig.circle(peaks["Times"] / 1000, peaks["Heights"], legend_label='Detected Peaks', color = 'red')
-    fig.vbar(x=peak_second_middles, bottom=accel_bottom,top=accel_top , width=(peak_second_diffs) * 0.5, y_range_name="peak_diff_range", color = fill_color, fill_alpha=1, legend_label='BPM Acceleration')
+    fig.vbar(x=peak_second_middles, bottom=accel_bottom,top=accel_top, width=(peak_second_diffs) * 0.5, y_range_name="peak_diff_range", color = fill_color, fill_alpha=1, legend_label='BPM Acceleration')
 
     
     fig.line(time_cut, signal_cut, legend_label='Waveform')
@@ -697,7 +698,7 @@ def plot_centered(fig, signal, time, peaks, best_peaks, chunk_size):
     cutoff = 0.01
     
     not_best_peak_samples = np.setdiff1d(peaks["Samples"], best_peaks["Samples"])
-    not_chunks = peak_chunks(signal, not_best_peak_samples , chunk_size)
+    not_chunks = peak_chunks(signal, not_best_peak_samples, chunk_size)
     xs, ys = [], []
     x_axis = time[0:chunk_size] - time[chunk_size // 2]
     for i in np.arange(not_chunks.shape[0]):
@@ -710,7 +711,7 @@ def plot_centered(fig, signal, time, peaks, best_peaks, chunk_size):
     max_height = 1
     
     best_peak_samples = best_peaks["Samples"]
-    chunks = peak_chunks(signal, best_peak_samples , chunk_size)
+    chunks = peak_chunks(signal, best_peak_samples, chunk_size)
 
     xs, ys = [], []
     x_axis = time[0:chunk_size] - time[chunk_size//2]

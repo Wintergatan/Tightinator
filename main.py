@@ -7,11 +7,11 @@ from bokeh.layouts import row, column
 from bokeh.transform import linear_cmap
 from scipy.io import wavfile
 from scipy.signal import find_peaks, correlate
+from datetime import datetime
+import json
 import argparse
 import logging
-#from skimage.measure import block_reduce
-import os
-import random
+#from skimage.measure import block_reduce #stays if downsampling is reintroduced
 
 filename = ''
 output_filename = ''
@@ -35,7 +35,7 @@ parser.add_argument('-f', '--file', dest='filename', type=str, action='store', h
 parser.add_argument('-o', '--out', dest='output_filename', type=str, action='store', help='Filename to write output values to')
 parser.add_argument('-t', '--threshold', dest='threshold', default='0.1', type=float, action='store', help='DEFAULT=0.1 Peak detection threshold. Works best 0.1 and above. Setting too high/low can cause misdetection.')
 parser.add_argument('-c', '--channel', dest='channel', default='1', type=int, action='store', help='DEFAULT=1 Channel to get the waveform from.')
-parser.add_argument('-cz', '--chunksize', dest='chunk_size', default='400', type=int, action='store', help='DEFAULT=400 Basissize of the chunks used for peakfinding.')
+parser.add_argument('-cz', '--chunksize', dest='chunk_size', default='8.4', type=float, action='store', help='DEFAULT=8.4 Basissize of the chunks used for peakfinding.')
 parser.add_argument('-ex', '--exclusion', dest='exclusion', default='150', type=int, action='store', help='DEFAULT=150 Minimum distance between peaks in ms.')
 parser.add_argument('-r', '--precision', dest='float_prec', default='6', type=int, action='store', help='DEFAULT=6 Number of decimal places to round measurements to. Ex: -p 6 = 261.51927438')
 parser.add_argument('-l', '--length', dest='l_bestseries', default='100', type=int, action='store', help='DEFAULT=100 The length of the series of most consistent beats.')
@@ -60,11 +60,12 @@ def main():
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
     # User configuration values
+    work_dir = ''
     filename = args.filename
     channel = args.channel
     threshold = args.threshold
     exclusion = args.exclusion
-
+    
     float_prec = args.float_prec
     l_bestseries = args.l_bestseries
     chunk_size = args.chunk_size
@@ -81,7 +82,7 @@ def main():
         output_filename = filename[:-4]+".csv"
     else:
         output_filename = args.output_filename
-
+        
     # If web mode add the work dir to the filenames
     if args.web_mode:
         if not args.work_dir:
@@ -91,9 +92,11 @@ def main():
             filename = work_dir + filename
             output_filename = work_dir + output_filename
             print("{}, {}".format(filename, output_filename))
-
+    
+    
     signal, time, sample_rate = load_wav(filename, channel) #load the wav file, outputs a normalized signal of the selected channel, the corresponding time-xaxis and the sample_rate
-    exclusion_samples = (exclusion*sample_rate/1000) #calculate exclusion in samples from exclusion in ms
+    exclusion_samples = int(exclusion*sample_rate/1000) #calculate exclusion in samples from exclusion in ms
+    chunk_size = int(chunk_size*sample_rate/1000) #calculate exclusion in samples from exclusion in ms
     peaks = rough_peaks(signal, time, threshold, exclusion_samples) #searches for the highest peaks in the file, they need to have a min height of threshold and a min distance of exclusion
     peaks = peakrefiner_center_of_weight(signal, time, peaks, chunk_size) #refines the rough peaks found before by centering them on their center of weight 
     if(correlation):
@@ -107,9 +110,9 @@ def main():
     ###calculate data for the best peaks
     best_peaks = create_peaks(signal, time, peaks["Samples"], best_peak_numbers)
 
-    ### export csv
+    ### export data
     export_csv(output_filename, peaks, best_peaks, threshold, float_prec)
-
+    export_json(work_dir, args, peaks, best_peaks)
     ### make similarness plot
     fig_center = figure(title='Similarness plot - most consistent Beats', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]', width=int(np.floor(full_width/2)), height=plot_height)
     fig_center.output_backend = 'webgl'
@@ -235,6 +238,49 @@ def export_csv(output_filename, peaks, best_peaks, threshold, float_prec):
     np_fmt = "%1.{}f".format(float_prec)
     np.savetxt(output_filename, combined_array, delimiter=",", header="PeakTimes[ms],PeakDifferences[ms],BestTimes[ms],BestDifferrences[ms],data", fmt=np_fmt, comments="")
 
+
+def export_json(work_dir, args, peaks, best_peaks): 
+    """Exports a json file containing all passed args and some data about the peaks.
+    
+    Parameters
+    ----------
+    work_dir : path
+        The path where the json should be saved.
+    args : args
+        Commandline arguments passed to the script.
+    peaks : dict
+        A dict containing all the required peakdata.    
+    best_peaks : dict
+        A dict containing all the required peakdata of the best series of peaks.
+    """
+    
+    data = {
+    "file" : args.filename,
+    "out" : args.output_filename,
+    "threshold" : args.threshold,
+    "channel" : args.channel,
+    "chunksize" : args.chunk_size,
+    "exclusion" : args.exclusion,
+    "precision" : args.float_prec,
+    "length" : args.l_bestseries,
+    "web" : args.web_mode,
+    "correlation" : args.correlation,
+    "bpm-target" : args.bpm_target,
+    "bpm-window" : args.bpm_window,
+    "work-dir" : args.work_dir,
+    "x-width" : args.x_wide,
+    "plot-height" : args.y_high,
+    "verbose" : args.verbose,
+    "best-peak-stdev" : best_peaks["StdDiff"],
+    "peak-stdev" : peaks["StdDiff"],
+    "start-best-series" : int(np.min(best_peaks["Numbers"])),
+    "end-best-series" : int(np.max(best_peaks["Numbers"])),
+    "number_of_peaks" : len(peaks["Times"])
+    }
+    # Write the dictionary to a JSON file
+    with open('{}results_{}.json'.format(work_dir,datetime.now().strftime("%Y-%m-%d_%H-%M-%S")), 'w') as json_file:
+        json.dump(data, json_file)
+    
 def load_wav(Path, channel):
     """Loads a wav file, selects a channel and returns the waveform.
 
@@ -800,6 +846,7 @@ def pad_and_stack_arrays(arrays):
     stacked_array : 2darray
         A np.ndarray containing all arrays padded with zeroes.
     """
+    
     # Find the length of the longest array
     max_length = max(len(arr) for arr in arrays)
     

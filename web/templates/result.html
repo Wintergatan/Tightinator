@@ -76,18 +76,30 @@
             margin-bottom: 10px;
         }
 
+        button {
+            margin-top: 10px;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 16px;
+            border: solid;
+            border-color: #007bff;
+        }
+
         #homeButton {
-            text-align: center;
-            margin-top: 20px;
+            margin-top: 10px;
         }
 
         #homeLink {
             display: inline-block;
-            padding: 10px;
-            margin-left: 20px;
-            background-color: #007bff;
-            color: white;
-            border: none;
+            padding: 10px 20px;
+            background-color: #fff;
+            color: black;
+            border: solid;
+            border-color: #007bff;
             border-radius: 20px;
             cursor: pointer;
             text-decoration: none;
@@ -137,6 +149,7 @@
         <p class="failure-message">There was no retreivable timing file or results within the time allowed.</p>
         <p>Please send Tom this page and ID: {{ uuid }}</p>
         <div id="homeButton">
+            <button href="/result/{{ uuid }}/{{ output_filename }}">Check again for results</button>
             <a id="homeLink" href="{{ url_for('index') }}">Upload another file</a>
         </div>
     {% endif %}

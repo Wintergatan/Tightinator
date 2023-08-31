@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Peak detection settings:</title>
+    <title>Tightinator settings</title>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     {% include 'analytics.html' %}
     <style>
@@ -20,6 +20,7 @@
             padding: 20px;
             border-radius: 10px;
             box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+            max-width: min-content;
         }
 
         label {
@@ -106,10 +107,7 @@
             display: inline-block;
             max-height: 0;
             transition: max-height 0.3s ease-in-out;
-        }
-
-        h1 {
-            margin-bottom: 0px;
+            background: lightgrey;
         }
 
         i {
@@ -120,6 +118,27 @@
             margin-bottom: 10px;
             padding-bottom: 0px;
         }
+
+        formtitle {
+            display: flex;
+            align-items: center;
+            text-align: center;
+            min-width: 800px;
+        }
+
+        #logoImage {
+            display: flex;
+            width: 50%;
+            height: auto;
+            margin-right:30px;
+        }
+
+        #title {
+            font-size: 4rem;
+            font-weight:bolder;
+            margin: inherit;
+        }
+
 
     </style>
 </head>
@@ -132,16 +151,17 @@
     <div>
         <form id="configForm" action="{{ url_for('run', uuid=uuid) }}" method="post">
             <formTitle>
-                <h1>Peak detection settings:</h1>
-                <i>Hover over for a description of the effect of the option.</i>
+                <img id="logoImage" src="/static/assets/logo.png" alt="TIGHTINATOR">
+                <p id="title">Settings</p>
             </formTitle>
+            <i>Hover over for a description of the effect of the option.</i>
 
-            <p>File to analyze: {{ filename }}</p>
+<!--             <p>File to analcyze: {{ filename }}</p> -->
 
             <label for="output_filename" title="Filename to write output values to.">Output filename:
                 <input type="text" id="output_filename" name="output_filename" value={{ output_filename }}>
             </label>
-            </br>
+
             <label for="threshold" title="Peak detection threshold, lower is rougher.">Sensitivity:
                 <b><span id="thresholdLabel">0.1</span></b>
                 <input type="range" id="threshold" name="threshold" min="0" max="1" step="0.05" value="0.1">
@@ -149,6 +169,18 @@
 
             <label for="sample" title="The length of the series of most consistent beats.">Sample size:
                 <input type="number" id="sample" name="sample" step="1" value="100" required>
+            </label>
+
+            <label for "correlation" title="Use a 'best-fit' approach to refining rough peaks. Default to leaving this enabled.">Correlate:
+                <input type="checkbox" id="correlation" name="correlation" checked required>
+            </label>
+
+            <label for"bpm" title="The target BPM of the song. 0 = Auto.">BPM:
+                <input type="number" id="bpm" name="bpm" value="0">
+            </label>
+
+            <label for"bpm_win" title="Window of BPM that should be visible around the target. 0 = Auto.">BPM Window:
+                <input type="number" id="bpm_win" name="bpm_win" value="0">
             </label>
 
             <!-- Expand/Collapse button for advanced options -->
@@ -162,39 +194,43 @@
             <!-- Advanced Options section -->
             <div id="advancedOptions" class="expanded" style="display: none;">
                 </br>
-                <fieldset>
-                    <legend>Peak Detection Algorithm:</legend>
-
-                    <div>
-                        <label for="algRight">Right <input type="radio" id="algRight" name="algSelect" value="1" checked /></label>
-                        <label for="algCenter">Center <input type="radio" id="algCenter" name="algSelect" value="0" /></label>
-                    </div>
-                </fieldset>
-
-                <label for"bpm" title="The target BPM of the song. 0 = Auto.">BPM:
-                    <input type="number" id="bpm" name="bpm" value="0">
+                <label for="downsample_rate" title="Amount by which to reduce resolution. Higher resolution means longer compute.">Downsampling Rate:
+                    <input type="number" id="downsample_rate" name="downsample_rate" value="8">
                 </label>
-                <label for"bpmWin" title="Window of BPM that should be visible around the target. 0 = Auto.">BPM Window:
-                    <input type="number" id="bpmWin" name="bpmWin" value="0">
+
+                <label for="cutoff" title="Amount of waveform graph to cut off. More cutoff speeds processing.">Plot cutoff height:
+                    <b><span id="cutoffLabel">0.01</span></b>
+                    <input type="range" id="cutoff" name="cutoff" min="0" max="0.1" step="0.01" value="0.01">
                 </label>
-                <label for="rounding" title=" Number of decimal places to round measurements to. Ex: 6 = 0.000000">Number of decimals:
+
+                <label for="channel_number" title="Channel to get the waveform from.">Channel Number:
+                    <input type="number" id="channel_number" name="channel_number" value="0">
+                </label>
+
+                <label for="chunk_size" title="Multiplied by sample rate, smaller chunks will increase run times. Default 8.4.">Chunk size:
+                    <input type="number" id="chunk_size" name="chunk_size" value="8.4">
+                </label>
+
+                <label for="rounding" title="Number of decimal places to round measurements to. Ex: 6 = 0.000000">Number of decimals:
                     <input type="number" id="rounding" name="rounding" step="1" value="6" required>
                 </label>
-                <label for="channelNumber" title="Channel to get the waveform from.">Channel Number:
-                    <input type="number" id="channelNumber" name="channelNumber" value="0">
+
+                <label for="exclusion" title="Minimum distance between peaks in ms. Default 150.">Chunk size:
+                    <input type="number" id="exclusion" name="exclusion" value="150" required>
                 </label>
-                <label for="downsampleRate" title="Amount by which to reduce resolution. Higher resolution means longer compute.">Downsampling Rate:
-                    <input type="number" id="downsampleRate" name="downsampleRate" value="8">
+
+                <label for="web_mode" title="Get some width/height values from browser objects for graphing.">Web Mode:
+                    <input type="checkbox" id="web_mode" name="web_mode" checked>
                 </label>
-                <label for="webMode" title="Get some width/height values from browser objects for graphing.">Web Mode:
-                    <input type="checkbox" id="webMode" name="webMode" checked>
-                </label>
+
                 <label for="width" title="Fixed width for graphs.">Width:
                     <input type="number" id="xwide" name="xwide" value="5">
                 </label>
+
                 <label for="height" title="Fixed height for single plot.">Height:
                     <input type="number" id="yhigh" name="yhigh" value="5">
                 </label>
+
             </div>
 
             <input type="hidden" name="uuid" value="{{ uuid }}">
@@ -235,6 +271,8 @@
     <script>
         const thresholdInput = document.getElementById('threshold');
         const thresholdLabel = document.getElementById('thresholdLabel');
+        const cutoffInput = document.getElementById('cutoff');
+        const cutoffLabel = document.getElementById('cutoffLabel');
 
         // Update thresholdLabel with the current slider value
         thresholdInput.addEventListener('input', () => {
@@ -246,6 +284,18 @@
             const newThresholdLabel = document.createTextNode(thresholdInput.value);
             thresholdLabel.appendChild(newThresholdLabel);
         });
+
+        // Update cutoffLabel with the current slider value
+        cutoffInput.addEventListener('input', () => {
+            // Remove the existing threshold label if it exists
+            if (cutoffLabel.firstChild) {
+                cutoffLabel.removeChild(cutoffLabel.firstChild);
+            }
+
+            const newCutoffLabel = document.createTextNode(cutoffInput.value);
+            cutoffLabel.appendChild(newCutoffLabel);
+        });
+
 
     </script>
 

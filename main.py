@@ -10,7 +10,7 @@ from datetime import datetime
 import json
 import argparse
 import logging
-#from skimage.measure import block_reduce #stays if downsampling is reintroduced
+from skimage.measure import block_reduce #stays if downsampling is reintroduced
 
 filename = ''
 output_filename = ''
@@ -34,6 +34,7 @@ parser.add_argument('-f', '--file', dest='filename', type=str, action='store', h
 parser.add_argument('-o', '--out', dest='output_filename', type=str, action='store', help='Filename to write output values to.')
 parser.add_argument('-t', '--threshold', dest='threshold', default='0.1', type=float, action='store', help='DEFAULT=0.1 Peak detection threshold. Works best 0.1 and above. Setting too high/low can cause misdetection. Defaults 0.1.')
 parser.add_argument('-c', '--channel', dest='channel', default='1', type=int, action='store', help='DEFAULT=1 Channel to get the waveform from. Defaults 1.')
+parser.add_argument('-d', '--downsampling', dest='downsample_rate', default='8', type=int, action='store', help='DEFAULT=8 The downsampling used for drawing the waveform. Does not effect anything outside the way the waveform is drawn. Defaults 8.')
 parser.add_argument('-cz', '--chunksize', dest='chunk_size', default='8.4', type=float, action='store', help='DEFAULT=8.4 Basissize of the chunks used for peakfinding. Defaults 8.4.')
 parser.add_argument('-ex', '--exclusion', dest='exclusion', default='150', type=int, action='store', help='DEFAULT=150 Minimum distance between peaks in ms. Defaults 150.')
 parser.add_argument('-r', '--precision', dest='float_prec', default='6', type=int, action='store', help='DEFAULT=6 Number of decimal places to round measurements to. Ex: -p 6 = 261.51927438. Defaults 6.')
@@ -64,7 +65,7 @@ def main():
     channel = args.channel
     threshold = args.threshold
     exclusion = args.exclusion
-    
+    downsample_rate = args.downsample_rate
     float_prec = args.float_prec
     l_bestseries = args.l_bestseries
     chunk_size = args.chunk_size
@@ -125,7 +126,7 @@ def main():
     ### make waveform plot
     fig_wave = figure(title='Waveform plot', x_axis_label='Time [s]', y_axis_label='Amplitude [a.u.]', width=full_width, height=plot_height)
     fig_wave.output_backend = 'webgl'
-    plot_waveform(fig_wave, signal, time, peaks, best_peaks, bpm_window, bpm_target, threshold)
+    plot_waveform(fig_wave, signal, time, peaks, best_peaks, bpm_window, bpm_target, threshold, downsample_rate)
 
     ### plot it
     layout = column(fig_wave, row(fig_center, stat_fig))
@@ -644,7 +645,7 @@ def plot_chunk_sim(chunks, time, chunk_size, full_width, plot_height):
     y_range_end = min(2,np.max(ys))
     fig_wave.y_range = Range1d(start=y_range_start, end=y_range_end)  # Set the y-range of the left y-axis
 '''
-def plot_waveform(fig, signal, time, peaks, best_peaks, bpm_window, bpm_target, threshold):
+def plot_waveform(fig, signal, time, peaks, best_peaks, bpm_window, bpm_target, threshold, downsample_rate):
     """draws the waveform plot of the given signal and peaks.
     Will contain the Signal as Waveform, The BPM as green bars the BPM acceleration as orange and red bars, aswell as all detected peaks as red circles.
 
@@ -669,8 +670,10 @@ def plot_waveform(fig, signal, time, peaks, best_peaks, bpm_window, bpm_target, 
     """
     
     cutoff = 0.01
-    signal_cut = signal[signal > cutoff]
-    time_cut = time[signal > cutoff] / 1000
+    reduced_signal = block_reduce(signal,(downsample_rate,), np.mean)
+    reduced_time = time[::downsample_rate]
+    signal_cut = reduced_signal[reduced_signal > cutoff]
+    time_cut = reduced_time[reduced_signal > cutoff] / 1000
     zoom_factor = 10
     fill_color = np.where(peaks["AccelBPM"] < 0, 'darkred', 'darkorange')
     if(not bpm_target):
@@ -700,7 +703,6 @@ def plot_waveform(fig, signal, time, peaks, best_peaks, bpm_window, bpm_target, 
     fig.circle(peaks["Times"] / 1000, peaks["Heights"], legend_label='Detected Peaks', color = 'red')
     fig.vbar(x=peak_second_middles, bottom=accel_bottom,top=accel_top, width=(peak_second_diffs) * 0.5, y_range_name="peak_diff_range", color = fill_color, fill_alpha=1, legend_label='BPM Acceleration')
 
-    
     fig.line(time_cut, signal_cut, legend_label='Waveform')
     
     x_coordinate = np.min(best_peaks["Times"]) / 1000

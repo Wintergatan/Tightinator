@@ -92,11 +92,15 @@ def run(uuid):
 
     if request.form['web_mode']:
         web_mode = [
+            '-w',
             '-x', str(request.form['xwide']),
             '-y', str(request.form['yhigh'])
             ]
         debug_command = debug_command + web_mode
 
+    if request.form.get("correlation"):
+        correlate = ['-cp']
+        debug_command = debug_command + correlate
 
     print("Running {}".format(debug_command))
 

@@ -27,7 +27,7 @@ x_wide = ''
 y_high = ''
 bpm_target = ''
 bpm_window = ''
-correlation = True
+correlation = False
 
 parser = argparse.ArgumentParser(description='Map transient times')
 parser.add_argument('-f', '--file', dest='filename', type=str, action='store', help='File to open.')
@@ -40,7 +40,7 @@ parser.add_argument('-cz', '--chunk-size', dest='chunk_size', default='8.4', typ
 parser.add_argument('-ex', '--exclusion', dest='exclusion', default='150', type=int, action='store', help='Minimum distance between peaks in ms. Defaults 150.')
 parser.add_argument('-r', '--precision', dest='float_prec', default='6', type=int, action='store', help='Number of decimal places to round measurements to. Ex: -p 6 = 261.51927438. Defaults 6.')
 parser.add_argument('-l', '--length', dest='l_bestseries', default='100', type=int, action='store', help='The length of the series of most consistent beats. Defaults 100.')
-parser.add_argument('-cp', '--correlation', dest='correlation', default=True, action='store_false', help='Decide whether correlation is used as a peakfinder. Defaults True.')
+parser.add_argument('-cp', '--correlation', dest='correlation', default=False, action='store_true', help='Decide whether correlation is used as a peakfinder. Must enable.')
 parser.add_argument('-b', '--bpm-target', dest='bpm_target', default='0', type=float, action='store', help='The target BPM of the song. Use 0 for auto. Defaults 0.')
 parser.add_argument('-bw', '--bpm-window', dest='bpm_window', default='0', type=float, action='store', help='Window of BPM that should be visible around the target. Will be scaled to 75%% target height if 0. Defaults 0.')
 parser.add_argument('--work-dir', dest='work_dir', action='store', help='Directory structure to work under.' )

@@ -18,41 +18,46 @@ The main.py file in the top-level of this repository is the best file for use lo
 
 main.py will output help:
 ```
-usage: main.py [-h] [-f FILENAME] [-o OUTPUT_FILENAME] [-d DOWNSAMPLE_RATE] [-t THRESH] [-c CHANNEL] [-ex EXCLUSION] [-r FLOAT_PREC] [-l LEN_SERIES] [-w] [-b BPM_TARGET]
-               [-bw BPM_WINDOW] [-a KLICK] [--work-dir WORK_DIR] [-x X_WIDE] [-y Y_HIGH] [-v]
+usage: main.py [-h] [-f FILENAME] [-o OUTPUT_FILENAME] [-t THRESHOLD] [-cf CUTOFF] [-c CHANNEL] [-d DOWNSAMPLE_RATE] [-cz CHUNK_SIZE] [-ex EXCLUSION] [-r FLOAT_PREC]
+               [-l L_BESTSERIES] [-w] [-cp] [-b BPM_TARGET] [-bw BPM_WINDOW] [--work-dir WORK_DIR] [-x X_WIDE] [-y Y_HIGH] [-v]
 
 Map transient times
 
 options:
   -h, --help            show this help message and exit
   -f FILENAME, --file FILENAME
-                        File to open
+                        File to open.
   -o OUTPUT_FILENAME, --out OUTPUT_FILENAME
-                        Filename to write output values to
-  -d DOWNSAMPLE_RATE, --downsample-rate DOWNSAMPLE_RATE
-                        DEFAULT=4 Amount by which to reduce resolution. Higher resolution means longer compute.
-  -t THRESH, --threshold THRESH
-                        DEFAULT=0.1 Peak detection threshold. Works best 0.1 and above. Setting too high/low can cause misdetection.
+                        Filename to write output values to.
+  -t THRESHOLD, --threshold THRESHOLD
+                        DEFAULT=0.1 Peak detection threshold. Works best 0.1 and above. Setting too high/low can cause misdetection. Defaults 0.1.
+  -cf CUTOFF, --cutoff CUTOFF
+                        DEFAULT=0.01 The threshold below which the waveform should be cutoff for drawing. Does not affect anything outside the way the waveform is drawn,
+                        lowering below 0.01 will heavily decrease performance. Defaults 0.01.
   -c CHANNEL, --channel CHANNEL
-                        DEFAULT=1 Channel to get the waveform from.
+                        DEFAULT=1 Channel to get the waveform from. Defaults 1.
+  -d DOWNSAMPLE_RATE, --downsampling DOWNSAMPLE_RATE
+                        DEFAULT=8 The downsampling used for drawing the waveform. Does not affect anything outside the way the waveform is drawn, lowering below 8 will
+                        heavily decrease performance. Defaults 8.
+  -cz CHUNK_SIZE, --chunksize CHUNK_SIZE
+                        DEFAULT=8.4 Basissize of the chunks used for peakfinding. Defaults 8.4.
   -ex EXCLUSION, --exclusion EXCLUSION
-                        DEFAULT=3200 Minimum distance between peaks.
+                        DEFAULT=150 Minimum distance between peaks in ms. Defaults 150.
   -r FLOAT_PREC, --precision FLOAT_PREC
-                        DEFAULT=6 Number of decimal places to round measurements to. Ex: -p 6 = 261.51927438
-  -l LEN_SERIES, --length LEN_SERIES
-                        DEFAULT=100 The length of the series of most consistent beats.
+                        DEFAULT=6 Number of decimal places to round measurements to. Ex: -p 6 = 261.51927438. Defaults 6.
+  -l L_BESTSERIES, --length L_BESTSERIES
+                        DEFAULT=100 The length of the series of most consistent beats. Defaults 100.
   -w, --web             DEFAULT=False Get some width/height values from/ browser objects for graphing. Defaults false.
+  -cp, --correlation    DEFAULT=True Decide whether correlation is used as a peakfinder. Defaults True.
   -b BPM_TARGET, --bpm-target BPM_TARGET
-                        DEFAULT=0 The target BPM of the song. 0 = Auto.
+                        DEFAULT=0 The target BPM of the song. Use 0 for auto. Defaults 0.
   -bw BPM_WINDOW, --bpm-window BPM_WINDOW
-                        DEFAULT=0 Window of BPM that should be visible around the target. 0 = Auto.
-  -a KLICK, --algorithm KLICK
-                        DEFAULT=1 Switch between peak detecting algorithm. 0 = Center, 1 = Right
+                        DEFAULT=0 Window of BPM that should be visible around the target. Will be scaled to 75% target height if 0. Defaults 0.
   --work-dir WORK_DIR   Directory structure to work under.
   -x X_WIDE, --x-width X_WIDE
-                        DEFAULT=2000 Fixed width for graphs.
+                        DEFAULT=2000 Fixed width for graphs. Defaults 2000.
   -y Y_HIGH, --plot-height Y_HIGH
-                        DEFAULT=600 Fixed height for single plot.
+                        DEFAULT=600 Fixed height for single plot. Defaults 1340.
   -v, --verbose         Set debug logging
 
 ```

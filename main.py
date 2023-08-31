@@ -2,56 +2,56 @@
 
 import numpy as np
 from bokeh.plotting import figure, show, output_file, save
-from bokeh.models import LinearAxis, Range1d, Label
+from bokeh.models import LinearAxis, Range1d, Label#, LinearColorMapper
 from bokeh.layouts import row, column
-from scipy import integrate
 from scipy.io import wavfile
 from scipy.signal import find_peaks, correlate
-from scipy.interpolate import LSQUnivariateSpline
+from datetime import datetime
+import json
 import argparse
 import logging
-from skimage.measure import block_reduce
+from skimage.measure import block_reduce #stays if downsampling is reintroduced
 
 filename = ''
 output_filename = ''
-downsample_rate = ''
-thresh = ''
+threshold = ''
 channel = ''
+chunk_size = ''
 exclusion = ''
 float_prec = ''
-verbose = ''
 len_series = ''
 work_dir = ''
+l_bestseries = ''
 web_mode = False
 x_wide = ''
 y_high = ''
 bpm_target = ''
 bpm_window = ''
-klick = ''
-
+correlation = False
 
 parser = argparse.ArgumentParser(description='Map transient times')
-parser.add_argument('-f', '--file', dest='filename', type=str, action='store', help='File to open')
-parser.add_argument('-o', '--out', dest='output_filename', type=str, action='store', help='Filename to write output values to')
-parser.add_argument('-d', '--downsample-rate', dest='downsample_rate', default='4', type=int, action='store', help='DEFAULT=4 Amount by which to reduce resolution. Higher resolution means longer compute.')
-parser.add_argument('-t', '--threshold', dest='thresh', default='0.1', type=float, action='store', help='DEFAULT=0.1 Peak detection threshold. Works best 0.1 and above. Setting too high/low can cause misdetection.')
-parser.add_argument('-c', '--channel', dest='channel', default='1', type=int, action='store', help='DEFAULT=1 Channel to get the waveform from.')
-parser.add_argument('-ex', '--exclusion', dest='exclusion', default='3200', type=int, action='store', help='DEFAULT=3200 Minimum distance between peaks.')
-parser.add_argument('-r', '--precision', dest='float_prec', default='6', type=int, action='store', help='DEFAULT=6 Number of decimal places to round measurements to. Ex: -p 6 = 261.51927438')
-parser.add_argument('-l', '--length', dest='len_series', default='100', type=int, action='store', help='DEFAULT=100 The length of the series of most consistent beats.')
-parser.add_argument('-w', '--web', dest='web_mode', default=False, action='store_true', help='DEFAULT=False Get some width/height values from/ browser objects for graphing. Defaults false.')
-parser.add_argument('-b', '--bpm-target', dest='bpm_target', default='0', type=float, action='store', help='DEFAULT=0 The target BPM of the song. 0 = Auto.')
-parser.add_argument('-bw', '--bpm-window', dest='bpm_window', default='0', type=float, action='store', help='DEFAULT=0 Window of BPM that should be visible around the target. 0 = Auto.')
-parser.add_argument('-a', '--algorithm', dest='klick', default='1', type=int, action='store', help='DEFAULT=1 Switch between peak detecting algorithm. 0 = Center, 1 = Right')
+parser.add_argument('-f', '--file', dest='filename', type=str, action='store', help='File to open.')
+parser.add_argument('-o', '--out', dest='output_filename', type=str, action='store', help='Filename to write output values to.')
+parser.add_argument('-t', '--threshold', dest='threshold', default='0.1', type=float, action='store', help='Peak detection threshold. Works best 0.1 and above. Setting too high/low can cause misdetection. Defaults 0.1.')
+parser.add_argument('-cf', '--cutoff', dest='cutoff', default='0.01', type=float, action='store', help='The threshold below which the waveform should be cutoff for drawing. Does not affect anything outside the way the waveform is drawn, lowering below 0.01 will heavily decrease performance. Defaults 0.01.')
+parser.add_argument('-c', '--channel', dest='channel', default='1', type=int, action='store', help='Channel to get the waveform from. Defaults 1.')
+parser.add_argument('-d', '--downsampling', dest='downsample_rate', default='8', type=int, action='store', help='The downsampling used for drawing the waveform. Does not affect anything outside the way the waveform is drawn, lowering below 8 will heavily decrease performance. Defaults 8.')
+parser.add_argument('-cz', '--chunk-size', dest='chunk_size', default='8.4', type=float, action='store', help='Multiplied by sample rate, smaller chunks will increase run times. Defaults 8.4.')
+parser.add_argument('-ex', '--exclusion', dest='exclusion', default='150', type=int, action='store', help='Minimum distance between peaks in ms. Defaults 150.')
+parser.add_argument('-r', '--precision', dest='float_prec', default='6', type=int, action='store', help='Number of decimal places to round measurements to. Ex: -p 6 = 261.51927438. Defaults 6.')
+parser.add_argument('-l', '--length', dest='l_bestseries', default='100', type=int, action='store', help='The length of the series of most consistent beats. Defaults 100.')
+parser.add_argument('-cp', '--correlation', dest='correlation', default=False, action='store_true', help='Decide whether correlation is used as a peakfinder. Must enable.')
+parser.add_argument('-b', '--bpm-target', dest='bpm_target', default='0', type=float, action='store', help='The target BPM of the song. Use 0 for auto. Defaults 0.')
+parser.add_argument('-bw', '--bpm-window', dest='bpm_window', default='0', type=float, action='store', help='Window of BPM that should be visible around the target. Will be scaled to 75%% target height if 0. Defaults 0.')
 parser.add_argument('--work-dir', dest='work_dir', action='store', help='Directory structure to work under.' )
-parser.add_argument('-x', '--x-width', dest='x_wide', default='2000', type=int, action='store', help='DEFAULT=2000 Fixed width for graphs.')
-parser.add_argument('-y', '--plot-height', dest='y_high', default='1340', type=int, action='store', help='DEFAULT=600 Fixed height for single plot.')
+parser.add_argument('-w', '--web', dest='web_mode', default=False, action='store_true', help='Get some width/height values from/ browser objects for graphing. Defaults false.')
+parser.add_argument('-x', '--x-width', dest='x_wide', default='2000', type=int, action='store', help='Fixed width for graphs. Defaults 2000.')
+parser.add_argument('-y', '--plot-height', dest='y_high', default='1340', type=int, action='store', help='Fixed height for single plot. Defaults 1340.')
 parser.add_argument('-v', '--verbose', help="Set debug logging", action='store_true')
 
 args = parser.parse_args()
 
 def main():
-
     logging.info(args)
     if args.verbose:
         print(args)
@@ -61,33 +61,29 @@ def main():
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
     # User configuration values
+    work_dir = ''
     filename = args.filename
-    #envelope_smoothness = args.envelope_smoothness
-    downsamplerate = int(args.downsample_rate)
-    exclusion = int(int(args.exclusion) / downsamplerate)
-    #output_filename = args.output_filename
-    threshold = args.thresh
     channel = args.channel
+    threshold = args.threshold
+    exclusion = args.exclusion
+    downsample_rate = args.downsample_rate
     float_prec = args.float_prec
-    #nbins = args.nbins
-    #npeaks = args.npeaks
-    len_series = args.len_series
-    full_width = args.x_wide - 15
+    l_bestseries = args.l_bestseries
+    chunk_size = args.chunk_size
+    correlation = args.correlation
+    full_width = args.x_wide# - 15
     plot_height = args.y_high
     bpm_target = args.bpm_target    
     bpm_window = args.bpm_window
-    klick = args.klick
-
-    plot_height = int((plot_height-140)/2)
-
-    nbins = int(1 + (3.322 * np.log(len_series)))
+    cutoff = args.cutoff
+    plot_height = int((plot_height - 140) / 2)
 
     # If output_filename argument not set use the uploaded filename + .csv
     if not args.output_filename:
         output_filename = filename[:-4]+".csv"
     else:
         output_filename = args.output_filename
-
+        
     # If web mode add the work dir to the filenames
     if args.web_mode:
         if not args.work_dir:
@@ -97,120 +93,765 @@ def main():
             filename = work_dir + filename
             output_filename = work_dir + output_filename
             print("{}, {}".format(filename, output_filename))
+    
+    
+    signal, time, sample_rate = load_wav(filename, channel) #load the wav file, outputs a normalized signal of the selected channel, the corresponding time-xaxis and the sample_rate
+    exclusion_samples = int(exclusion*sample_rate/1000) #calculate exclusion in samples from exclusion in ms
+    chunk_size = int(chunk_size*sample_rate/1000) #calculate exclusion in samples from exclusion in ms
+    peaks = rough_peaks(signal, time, threshold, exclusion_samples) #searches for the highest peaks in the file, they need to have a min height of threshold and a min distance of exclusion
+    peaks = peakrefiner_center_of_weight(signal, time, peaks, chunk_size) #refines the rough peaks found before by centering them on their center of weight 
+    if(correlation):
+        peaks = peakrefiner_correlation(signal, time, peaks, chunk_size//2) #further refines the peaks by applying a correlation method to find the point of best overlap with current average
+    peaks = peakrefiner_maximum_right(signal, time, peaks, chunk_size//8) #looks for a maximum in a very small window around the refined peak
 
-    # Open wav file
-    frame_rate, data = wavfile.read(filename)
-    num_channels = data.shape[1] if len(data.shape) > 1 else 1
-    if(channel > num_channels):
-        channel = num_channels-1
+    ### find the best series
+    begin_best, l_bestseries = find_chunk_with_lowest_std(peaks, l_bestseries)
+    best_peak_numbers = np.arange(l_bestseries)+begin_best
 
-    if(num_channels > 1):
-        amplitude_data = data[:,channel-1] # First channel has to be 1, only programmers know things start at 0
-    else:
-        amplitude_data = data
-    #amplitude_data = resample(amplitude_data, int(len(amplitude_data)/downsamplerate))
-    #amplitude_data = amplitude_data[::downsamplerate]
-    reduction_factor = (downsamplerate,)
-    amplitude_data = block_reduce(amplitude_data,reduction_factor , np.mean)
-    timefactor = (frame_rate/downsamplerate)/1000
+    ###calculate data for the best peaks
+    best_peaks = create_peaks(signal, time, peaks["Samples"], best_peak_numbers)
 
-
-    normalized_amplitude = np.abs(amplitude_data / np.max(np.abs(amplitude_data)))
-    time = np.arange(0, len(normalized_amplitude))/timefactor
-    #envel = create_envelope(time,np.abs(normalized_amplitude),envelope_smoothness)
-    #norm_envelope = envel / np.max(np.abs(envel))
-    # Find peak maxima above the threshold
-    peaks_roughly, _ = find_peaks(normalized_amplitude, prominence=threshold,distance = exclusion)
-    #peaks_roughly, _ = find_peaks(norm_envelope, prominence=threshold,distance = exclusion)
-    #print(peaks_roughly)
-    logging.info("Found {} rough peaks, refining...".format(len(peaks_roughly)))
-    peaks = []
-
-    peaktimes = []
-
-    for peak in peaks_roughly:
-        search_range = int(400/downsamplerate)
-        max_index = peakrefiner_center_of_weight(np.abs(normalized_amplitude), peak, search_range)
-        if(klick):
-            max_index = peakrefiner_find_peak_to_right(np.abs(normalized_amplitude), max_index, search_range)
-        #max_time, max_index, max_value = find_fwhm_center(time,np.abs(normalized_amplitude),peak,search_range)
-        if(len(peaks) >0):
-            if(peaks[-1] != max_index):
-                peaks.append(max_index)
-                peaktimes.append(time[max_index])
-        else:
-            peaks.append(max_index)
-            peaktimes.append(time[max_index])
-    #peaks = correlator(np.abs(normalized_amplitude), peakspre, 50)
-    #peaktimes = time[peaks]
-    if(len(peaks) < len_series):
-        len_series = len(peaks)
-    #print(len(peaks))
-    #print(peaks)
-    #print(peaktimes)
-    peaks = np.array(peaks)
-    logging.info("Refined to {} peaks, calculating times...".format(len(peaks)))
-
-    timearray = peaktimes
-    differences = np.diff(timearray)
-    accel = np.gradient(differences)
-    differences = np.append(differences, 0)
-    stdev = np.zeros(len(peaks))
-
-    accel= np.append(accel, 0)
-    signal = normalized_amplitude
-    segment_width = 1000
-
-    diffs = differences[:-1]
-    diff_std = []
-    for i in range(len(diffs)-(len_series-2)):
-        diff_std.append(np.std(diffs[i:i+len_series]))
-    start_of_best_series=np.argmin(diff_std)
-
-    best_peaks = peaks[start_of_best_series:start_of_best_series+len_series]
-    best_series_times = timearray[start_of_best_series:start_of_best_series+len_series]
-    best_series_times_csv = np.pad(best_series_times,(0,len(peaks)-len_series),'constant')
-    best_diffs = diffs[start_of_best_series:start_of_best_series+len_series]
-    best_diffs_csv = np.pad(best_diffs,(0,len(peaks)-len_series),'constant')
-    #print(len(best_peaks))
-    stdev[0] = np.std(best_diffs)
-    stdev[1] = np.std(differences)
-    stdev[3] = start_of_best_series
-    stdev[4] = start_of_best_series+len_series
-    stdev[5] = len(peaks)
-    stdev[7] = threshold
-    best_series_amps = signal[best_peaks]
-    combined_array = pad_and_stack_arrays([timearray,differences,best_series_times_csv,best_diffs_csv,stdev])
-    #output_filename = filename[:-4]+".csv"
-    logging.info("Saving output values to {}".format(output_filename))
-    np_fmt = "%1.{}f".format(float_prec)
-    np.savetxt(output_filename, combined_array, delimiter=",", header="PeakTimes[ms],PeakDifferences[ms],BestTimes[ms],BestDifferrences[ms],data", fmt=np_fmt, comments="")
-    norm_envelope = []
+    ### export data
+    export_csv(output_filename, peaks, best_peaks, threshold, float_prec)
+    export_json(work_dir, args, peaks, best_peaks)
+    ### make similarness plot
     fig_center = figure(title='Similarness plot - most consistent Beats', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]', width=int(np.floor(full_width/2)), height=plot_height)
     fig_center.output_backend = 'webgl'
-    center_fig = plot_centered(fig_center,signal,time, best_peaks, norm_envelope,downsamplerate)
-    logging.info("center_plot figure created")
-    
-    fig_waveform = figure(title='Consistency/Waveform plot', x_axis_label='Time [s]', y_axis_label='Amplitude [a.u.]', width=full_width, height=plot_height)
-    fig_waveform.output_backend = 'webgl'
-    waveform_fig = plot_waveform(fig_waveform,signal,time,peaks,peaktimes,frame_rate,best_series_times,threshold,bpm_target,bpm_window, norm_envelope)
-    logging.info("waveform figure created")
+    center_fig = plot_centered(fig_center, signal, time, peaks, best_peaks, chunk_size)
 
+    ### make stat plot
     fig_stat = figure(title='Statistics plot - most consistent Beats', x_axis_label='Transient Time difference [ms]', y_axis_label='Probability density[1/ms]', width=int(np.floor(full_width/2)), height=plot_height)
     fig_stat.output_backend = 'webgl'
-    stat_fig = plot_stat(fig_stat,best_series_times,best_series_amps,nbins)
-    logging.info("stat figure created")
+    stat_fig = plot_stat(fig_stat, best_peaks)
 
-    layout = column(waveform_fig, row(fig_center, stat_fig))
+    ### make waveform plot
+    fig_wave = figure(title='Waveform plot', x_axis_label='Time [s]', y_axis_label='Amplitude [a.u.]', width=full_width, height=plot_height)
+    fig_wave.output_backend = 'webgl'
+    plot_waveform(fig_wave, signal, time, peaks, best_peaks, bpm_window, bpm_target, threshold, downsample_rate, cutoff)
+
+    ### plot it
+    layout = column(fig_wave, row(fig_center, stat_fig))
     if args.web_mode:
         print("Writing graphs to {}summary.html".format(work_dir))
         output_file("{}summary.html".format(work_dir), title="Summary Page")
+
         save(layout)
     else:
         output_file("summary.html", title="Summary Page")
         show(layout)
 
+def create_peaks(signal, time, samples, peak_numbers=[]):
+    """Creates a dict containing the following Keys:
+        "Numbers": The number of the peaks.
+        "Samples" : The sample position of the peaks.
+        "Heights": The height of the peaks.
+        "Times": The time of the peaks.
+        "Diffs": The time difference between peak.
+        "MeanDiff": The mean time difference between peaks.
+        "StdDiff": The standard deviation of the time difference between peaks.
+        "BPM": The BPM between peaks.
+        "MeanBPM": The mean BPM between peaks.
+        "StdBPM": The standard deviation of the BPM between peaks.
+        "TimeMiddles": The middles between peaks.
+        "Accel": The acceleration of difference between peaks.
+        "AccelBPM": The acceleration of the BPM.
+        "AccelDiff": The difference in acceleration of the BPM.
+        
+    Parameters
+    ----------
+    signal : array
+        np.array that contains the normalized waveform.     
+    time : array
+        np.array that contains the corresponding time of each sample in ms.
+    samples : array
+        np.array that contains the position of each peak in samples.
+    peak_numbers: array
+        np.array that contains the Number of each peak that should be selected.
+        
+    Returns
+    -------
+    peaks : dict
+        dict that contains all relevant data of the peaks.   
+    """
+    
+    if(len(peak_numbers) == 0):
+        peak_numbers = np.arange(len(samples))
+    else:
+        samples = samples[peak_numbers]
+    times = time[samples]
+    diffs = np.diff(times)
+    BPM = (60 * 1000) / diffs
+    accel = np.gradient(diffs)
+
+    peaks ={
+        "Numbers": peak_numbers,
+        "Samples" : samples,
+        "Heights": signal[samples],
+        "Times": times,
+        "Diffs": diffs,
+        "MeanDiff": np.mean(diffs),
+        "StdDiff": np.std(diffs),
+        "BPM": BPM,
+        "MeanBPM": np.mean(BPM),
+        "StdBPM": np.std(BPM),
+        "TimeMiddles": (times[:-1] + times[1:]) / 2,
+        "Accel": accel,
+        "AccelBPM": np.gradient(BPM),
+        "AccelDiff": np.diff(accel)
+    }
+    return peaks
+
+def export_csv(output_filename, peaks, best_peaks, threshold, float_prec): 
+    """Exports a csv file of the following form:
+        PeakTimes[ms]|PeakDifferences[ms]|BestTimes[ms]|BestDifferrences[ms]|data
+        data contains row by row:
+            standard deviation of differences in best series [ms].
+            standard deviation of differences [ms].
+            0
+            start of best series by peaknumber.
+            end of best series by peaknumber.
+            0
+            threshold in a range of 0 to 1 [a.u.].
+    
+    Parameters
+    ----------
+    output_filename : path
+        The filename as which the csv should be saved.       
+    peaks : dict
+        A dict containing all the required peakdata.    
+    best_peaks : dict
+        A dict containing all the required peakdata of the best series of peaks.
+    threshold: float
+        The threshold used for detection.
+    float_prec: int
+        The precision used for exporting floats.
+    """
+    
+    stdev = np.zeros(len(peaks["Times"]))
+    stdev[0] = best_peaks["StdDiff"]              #the standard deviation of the differences in the best series
+    stdev[1] = peaks["StdDiff"]                  #the standard deviation of all peak differences
+    stdev[3] = np.min(best_peaks["Numbers"])  #the start of the best series
+    stdev[4] = np.max(best_peaks["Numbers"])  #the end of the best series
+    stdev[5] = len(peaks["Times"])        #the number of peaks
+    stdev[7] = threshold                #the threshold used in recording the data
+    combined_array = pad_and_stack_arrays([peaks["Times"], peaks["Diffs"], best_peaks["Times"], best_peaks["Diffs"], stdev])
+    logging.info("Saving output values to {}".format(output_filename))
+    np_fmt = "%1.{}f".format(float_prec)
+    np.savetxt(output_filename, combined_array, delimiter=",", header="PeakTimes[ms],PeakDifferences[ms],BestTimes[ms],BestDifferrences[ms],data", fmt=np_fmt, comments="")
+
+
+def export_json(work_dir, args, peaks, best_peaks): 
+    """Exports a json file containing all passed args and some data about the peaks.
+    
+    Parameters
+    ----------
+    work_dir : path
+        The path where the json should be saved.
+    args : args
+        Commandline arguments passed to the script.
+    peaks : dict
+        A dict containing all the required peakdata.    
+    best_peaks : dict
+        A dict containing all the required peakdata of the best series of peaks.
+    """
+    
+    data = {
+    "file" : args.filename,
+    "out" : args.output_filename,
+    "threshold" : args.threshold,
+    "channel" : args.channel,
+    "chunksize" : args.chunk_size,
+    "exclusion" : args.exclusion,
+    "precision" : args.float_prec,
+    "length" : args.l_bestseries,
+    "web" : args.web_mode,
+    "correlation" : args.correlation,
+    "bpm-target" : args.bpm_target,
+    "bpm-window" : args.bpm_window,
+    "work-dir" : args.work_dir,
+    "x-width" : args.x_wide,
+    "plot-height" : args.y_high,
+    "verbose" : args.verbose,
+    "best-peak-stdev" : best_peaks["StdDiff"],
+    "peak-stdev" : peaks["StdDiff"],
+    "start-best-series" : int(np.min(best_peaks["Numbers"])),
+    "end-best-series" : int(np.max(best_peaks["Numbers"])),
+    "number_of_peaks" : len(peaks["Times"])
+    }
+    # Write the dictionary to a JSON file
+    with open('{}results_{}.json'.format(work_dir,datetime.now().strftime("%Y-%m-%d_%H-%M-%S")), 'w') as json_file:
+        json.dump(data, json_file)
+    
+def load_wav(Path, channel):
+    """Loads a wav file, selects a channel and returns the waveform.
+
+    Parameters
+    ----------
+    Path : path
+        The path to the location of the wav file .       
+    channel : int
+        The selected channel, is offset by 1, so the first channel can be indexed with 1 .   
+
+    Returns
+    -------
+    signal : array
+        The Waveform of the selected channel as a normalized np.array of floats.
+    time : array
+        The time of each point in the signal array in ms.
+    sample_rate : int
+        The sample_rate of the wav file .  
+    """
+    
+    sample_rate, data = wavfile.read(Path)
+    num_channels = data.shape[1] if len(data.shape) > 1 else 1
+    if(channel > num_channels):
+        channel = num_channels - 1
+    
+    if(num_channels > 1):
+        amplitude_data = data[:,channel-1] # First channel has to be 1, only programmers know things start at 0
+    else:
+        amplitude_data = data
+    #reduced_signal = block_reduce(amplitude_data,(downsample_rate,), np.mean)
+    reduced_signal = amplitude_data
+    signal = np.abs(reduced_signal / np.max(np.abs(reduced_signal)))
+    sample_rate = sample_rate
+    time_factor = sample_rate/1000
+    time = np.arange(0, len(signal))/time_factor
+    return signal, time, sample_rate
+
+def rough_peaks(signal, time, threshold, exclusion):
+    """A simple peakfinder that finds all peaks that are higher than the set threshold. 
+    Will only detect one peak within exclusion number of samples.
+
+    Parameters
+    ----------
+    signal : array
+        np.array that contains the normalized waveform.  
+    time : array
+        np.array that contains the corresponding time of each sample in ms.        
+    threshold : float
+        Lower bound of when a peak is concidered a peak.   
+    exclusion : int
+        Size of the window that excludes other peaks in samples.
+
+    Returns
+    -------
+    peaks : dict
+        dict that contains all relevant data of the peaks.    
+    """
+    
+    samples, _ = find_peaks(signal, prominence=threshold, distance = exclusion)
+    peaks = create_peaks(signal, time, samples)
+    return peaks
+
+    
+def peak_chunks(signal, peak_Samples, chunk_size):
+    """Cuts chunks around the given peaks and returns them as a 2d array, with each row showing a window of size chunk_size around the given peak_Samples.
+
+    Parameters
+    ----------
+    signal : array
+        np.array that contains the normalized waveform.     
+    peak_Samples : array
+        Points around which the chunks of the signal should be centered.  
+    chunk_size : int
+        Length of the chunks.
+
+    Returns
+    -------
+    padded_chunks : 2darray
+        An np.ndarray containing samples of size chunk_size centered around given peak_Samples.
+        Will pad itself so that hitting a border is not a problem.
+    """
+    
+    waveform = signal
+    center_points = peak_Samples
+    num_center_points = len(center_points)
+    half_chunk_size = chunk_size // 2
+    start_indices = np.maximum(0, np.array(center_points) - half_chunk_size)
+    end_indices = np.minimum(len(waveform), np.array(center_points) + half_chunk_size + 1)
+    padding = chunk_size - (end_indices - start_indices)
+    padding[padding < 0] = 0
+    
+    indices = np.arange(chunk_size)
+    indices = indices[np.newaxis, :] + start_indices[:, np.newaxis]
+    chunks = np.take(waveform, indices, mode='clip')
+    
+    padded_chunks = np.where(padding[:, np.newaxis] > 0, 0, chunks)
+#    tonormalize = True
+#    if tonormalize:
+    peak_heights = signal[peak_Samples]
+    padded_chunks = padded_chunks / np.maximum(0.1, peak_heights[:, np.newaxis])
+        
+    return padded_chunks
+
+
+def peakrefiner_center_of_weight(signal, time, old_peaks, chunk_size):
+    """A peak refiner that takes a rough estimate of a peak location and shifts it to the center of weight of a given peak.
+
+    Parameters
+    ----------
+    signal : array
+        np.array that contains the normalized waveform .   
+    time : array
+        np.array that contains the corresponding time of each sample in ms.                
+    old_peaks : dict
+        Old peaks to refine.
+    chunk_size : int
+        Length of the window of calculation.
+
+    Returns
+    -------
+    new_peaks : dict
+        dict that contains all relevant data of the refocused peaks.    
+    """
+    
+    chunks = peak_chunks(signal, old_peaks["Samples"], chunk_size)
+
+    window_size = 51
+    sigma = 50  # Adjust the sigma value as needed for your Gaussian kernel
+    x = np.arange(window_size)
+    weights = 1 / (np.sqrt(2 * np.pi) * sigma) * np.exp(-0.5 * ((x - window_size) / sigma)**2)
+    weights /= weights.sum()  # Normalize the weights
+    chunks = np.apply_along_axis(lambda row: np.convolve(row, weights, mode='same'), axis=1, arr=chunks)
+    center_index = chunk_size // 2
+
+    start_indexes = np.maximum(0, old_peaks["Samples"]-center_index)
+    # Calculate the weighted average (center of weight) for each time sample
+    power = 1.5
+    centers_of_weight = np.round(np.sum((np.arange(chunk_size)*np.power(chunks, power)), axis=1) / np.sum(np.power(chunks, power), axis=1)).astype(int)
+    new_peak_samples = start_indexes + centers_of_weight 
+    new_peaks = create_peaks(signal, time, new_peak_samples)
+    return new_peaks
+    
+def peakrefiner_maximum_right(signal, time, old_peaks, chunk_size):
+    """A peak refiner that takes the center of weight of a peak and finds the maximum right of that.
+    It works surprisingly well.
+
+    Parameters
+    ----------
+    signal : array
+        np.array that contains the normalized waveform.    
+    time : array
+        np.array that contains the corresponding time of each sample in ms.               
+    old_peaks : dict
+        Old peaks to refine.
+    chunk_size : int
+        Length of the window of calculation.
+
+    Returns
+    -------
+    new_peaks : dict
+        dict that contains all relevant data of the refocused peaks.    
+    """
+    
+    new_chunk_size = chunk_size //2
+    shift = 0#new_chunk_size//2
+    chunks = peak_chunks(signal, old_peaks["Samples"]+shift, new_chunk_size)
+    center_index = new_chunk_size  // 2
+    window_size = 31
+    sigma = 10  # Adjust the sigma value as needed for your Gaussian kernel
+    x = np.arange(window_size)
+    weights = 1 / (np.sqrt(2 * np.pi) * sigma) * np.exp(-0.5 * ((x - window_size) / sigma)**2)
+    weights /= weights.sum()  # Normalize the weights
+    chunks = np.apply_along_axis(lambda row: np.convolve(row, weights, mode='same'), axis=1, arr=chunks)
+    start_indexes = np.maximum(0, old_peaks["Samples"] - center_index)  -chunk_size // 2
+    
+    # Find the index of the maximum value within each chunk
+    max_indices = np.argmax(chunks, axis=1)
+    
+    # Calculate the new peak_Samples using the maximum indices
+    new_peak_samples = old_peaks["Samples"] + max_indices
+    new_peaks = create_peaks(signal, time, new_peak_samples)
+    return new_peaks
+
+ 
+def peakrefiner_correlation(signal, time, old_peaks, chunk_size):
+    """A peak refiner that uses the correlation method to align all peaks.
+    Best described as a "put stuff where it best fits in" method.
+
+    Parameters
+    ----------
+    signal : array
+        np.array that contains the normalized waveform.    
+    time : array
+        np.array that contains the corresponding time of each sample in ms.                
+    old_peaks : dict
+        Old peaks to refine.
+    chunk_size : int
+        Length of the window of calculation.
+
+    Returns
+    -------
+    new_peaks : dict
+        dict that contains all relevant data of the refocused peaks.   
+    """
+    
+    new_chunk_size = chunk_size * 2
+    chunks = peak_chunks(signal, old_peaks["Samples"], new_chunk_size)
+    center_index = new_chunk_size  // 2
+    window_size = 31
+    sigma = 10  # Adjust the sigma value as needed for your Gaussian kernel
+    x = np.arange(window_size)
+    weights = 1 / (np.sqrt(2 * np.pi) * sigma) * np.exp(-0.5 * ((x - window_size) / sigma)**2)
+    weights /= weights.sum()  # Normalize the weights
+    chunks = np.apply_along_axis(lambda row: np.convolve(row, weights, mode='same'), axis=1, arr=chunks)
+    row_norms = np.max(np.abs(chunks), axis=1)
+    chunks = np.abs(chunks / row_norms[:, np.newaxis])
+    start_indexes = np.maximum(0, old_peaks["Samples"] - center_index) - new_chunk_size // 2
+    diff_chunks = np.gradient(chunks, axis = 1)
+    row_norms = np.max(np.abs(diff_chunks), axis=1)
+    diff_chunks = np.abs(diff_chunks / row_norms[:, np.newaxis])
+    acc_chunks = np.gradient(diff_chunks, axis = 1)
+    row_norms = np.max(np.abs(acc_chunks), axis=1)
+    acc_chunks = np.abs(acc_chunks / row_norms[:, np.newaxis])
+    maxi_sum = diff_chunks + acc_chunks
+
+    mean_trace = np.mean(maxi_sum, axis = 0)
+    mean_trace = np.abs(mean_trace / np.max(mean_trace))
+    best_shift_index = np.array([]).astype(np.int32)
+    # Find the index of the maximum correlation value
+    for trace in maxi_sum:
+        window_size = 15
+        trace_smooth = np.convolve(trace, weights, mode='same')
+        tracenorm = np.abs(trace_smooth / np.max(trace_smooth))
+        correlation = np.correlate(tracenorm, mean_trace, mode='full')
+
+        index = np.argmax(correlation) - new_chunk_size
+        index = index.astype(int)
+        best_shift_index = np.append(best_shift_index, index)
+    new_indices = old_peaks["Samples"] + best_shift_index
+    new_peak_samples = new_indices
+    new_peaks = create_peaks(signal, time, new_peak_samples)
+    return new_peaks
+
+
+def find_chunk_with_lowest_std(peaks, l_bestseries):
+    """Finds the location of the best series of transients.
+
+    Parameters
+    ----------
+    peaks : dict
+        A dict containing all the required peakdata.    
+    l_bestseries : int
+        Length of best series.
+
+    Returns
+    -------
+    start_of_best_series : int
+        Start of the best series.
+    l_bestseries : int
+        Possibly modified length.
+    """
+    
+    samples = peaks["Samples"]
+    if(l_bestseries >= len(samples)):
+        l_bestseries = len(samples)
+    diffs = np.diff(samples)
+    diff_std = []
+    for i in range(len(diffs) - (l_bestseries-2)):
+        diff_std.append(np.std(diffs[i:i+l_bestseries]))
+    start_of_best_series = np.argmin(diff_std)
+    return start_of_best_series, l_bestseries
+
+def draw_line(fig, legend_str, pos_sample, chunk_height, vertical=True, color="black", dash="dashed"):
+    """Draws a straight line on a figure.
+
+    Parameters
+    ----------
+    fig : figure
+        The figure to draw on.   
+    legend_str : str
+        String that describes what the line represents.
+    pos_sample : float
+        Where that line should be drawn.
+    chunk_height : float
+        Length of the line (set to height of plotwindow for max height).
+    vertical : bool
+        Whether to draw vertical or horizontal.
+    color : str
+        The color that the line should be.
+    dash : str
+        Change between dashed or other linemodes.
+    """
+    
+    # Draw horizontal line
+    if(not vertical):
+        fig.line(x=[0, chunk_height], y=[pos_sample, pos_sample],
+             line_width=2, line_dash="dashed", line_color=color, legend_label=legend_str)
+    else:
+    # Draw vertical line
+        fig.line(x=[pos_sample, pos_sample], y=[0, chunk_height],
+             line_width=2, line_dash="dashed", line_color=color, legend_label=legend_str)
+'''
+def plot_chunks(chunks, time, chunk_size, full_width, plot_height, best_peak_numbers=[]):
+    """Draws chunks as a false color plot, might not work right now.
+
+    Parameters
+    ----------
+    chunks : 2darray
+        An np.ndarray containing samples of size chunk_size.
+    time : array
+        np.array that contains the corresponding time of each sample in ms.  
+    chunk_size : int
+        Length of the window of calculation.
+    best_peak_numbers : array
+        np.array that contains the Number of each peak of the best peak series.
+    full_width: int
+        How wide the plot should be drawn in pixels.
+    plot_height: int
+        How high the plot should be drawn in pixels.
+    """
+    
+    fig_chunks = figure(title='chunks', width=full_width, height=plot_height)
+    fig_chunks.output_backend = 'webgl'
+    palette = 'Viridis256'  # Or any other palette you want
+    color_mapper = LinearColorMapper(palette=palette, low=0, high=1)
+    fig_chunks.image(image=[chunks], x=-time[chunk_size//2], y=0, dw=time[chunk_size], dh=chunks.shape[0], color_mapper=color_mapper)
+    fig_chunks.line(x=[0,0], y=[0,chunks.shape[0]], color="red")
+    if(len(best_peak_numbers) != 0):
+        x_coordinate = np.min(best_peak_numbers)
+        fig_chunks.line(x=[-time[chunk_size//2],time[chunk_size//2]], y=[x_coordinate,x_coordinate], line_width=2, line_dash="dashed", line_color="white")
+        x_coordinate = np.max(best_peak_numbers)
+        fig_chunks.line(x=[-time[chunk_size//2],time[chunk_size//2]], y=[x_coordinate,x_coordinate], line_width=2, line_dash="dashed", line_color="white")
+    show(fig_chunks)
+
+def plot_chunk_sim(chunks, time, chunk_size, full_width, plot_height):
+    """Draws chunks in style of the similarness plot, might not work right now.
+
+    Parameters
+    ----------
+    chunks : 2darray
+        An np.ndarray containing samples of size chunk_size.
+    time : array
+        np.array that contains the corresponding time of each sample in ms. 
+    chunk_size : int
+        Length of the window of calculation.
+    full_width: int
+        How wide the plot should be drawn in pixels.
+    plot_height: int
+        How high the plot should be drawn in pixels.
+    """
+    
+    fig_wave = figure(title='Wave plot', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]', width=full_width, height=plot_height)
+    fig_wave.output_backend = 'webgl'
+    ys, xs = [],[]
+    xrange = time[np.arange(chunk_size)] - time[chunk_size // 2]
+    for chunk in chunks:
+        ys.append(chunk)
+        xs.append(xrange)
+    fig_wave.multi_line(xs, ys, alpha = 0.5)
+    fig_wave.circle(x=0, y=1, color="red")
+    y_range_start = 0
+    y_range_end = min(2,np.max(ys))
+    fig_wave.y_range = Range1d(start=y_range_start, end=y_range_end)  # Set the y-range of the left y-axis
+'''
+def plot_waveform(fig, signal, time, peaks, best_peaks, bpm_window, bpm_target, threshold, downsample_rate, cutoff):
+    """draws the waveform plot of the given signal and peaks.
+    Will contain the Signal as Waveform, The BPM as green bars the BPM acceleration as orange and red bars, aswell as all detected peaks as red circles.
+
+    Parameters
+    ----------
+    fig : figure
+        The figure to draw into.
+    signal : array
+        np.array that contains the normalized waveform.    
+    time : array
+        np.array that contains the corresponding time of each sample in ms.  
+    peaks : dict
+        A dict containing all the required peakdata.    
+    best_peaks : dict
+        A dict containing all the required peakdata of the best series.   
+    bpm_window : int
+        How big the upper and lower bounds of the y-axis centered on the bpm_target or mean BPM will be.
+    bpm_target: int
+        On which bpm the y-axis should be centered.
+    threshold: float
+        The threshold used for peakdetection.
+    downsample_rate: float
+        The downsample rate used for drawing the waveform.
+    cutoff: float
+        The cutoff below which the waveform is not drawn.
+    """
+
+    reduced_signal = block_reduce(signal,(downsample_rate,), np.mean)
+    reduced_time = time[::downsample_rate]
+    signal_cut = reduced_signal[reduced_signal > cutoff]
+    time_cut = reduced_time[reduced_signal > cutoff] / 1000
+    zoom_factor = 10
+    fill_color = np.where(peaks["AccelBPM"] < 0, 'darkred', 'darkorange')
+    if(not bpm_target):
+        if(not bpm_window):
+            secondary_yrange_start = max(0, best_peaks["MeanBPM"] - zoom_factor * best_peaks["StdBPM"])
+            secondary_yrange_end = best_peaks["MeanBPM"] + zoom_factor * best_peaks["StdBPM"]
+        else:
+            secondary_yrange_start = max(0, best_peaks["MeanBPM"] - bpm_window)
+            secondary_yrange_end = best_peaks["MeanBPM"] + bpm_window
+    else:
+        if(not bpm_window):
+            secondary_yrange_start = 0
+            secondary_yrange_end = bpm_target / 0.75
+        else:
+            secondary_yrange_start = bpm_target - bpm_window
+            secondary_yrange_end = bpm_target + bpm_window
+    accel_bottom = secondary_yrange_start
+    accel_top = accel_bottom + np.abs(peaks["AccelBPM"])
+    peak_second_middles = peaks["TimeMiddles"] / 1000
+    peak_second_diffs= peaks["Diffs"] / 1000
+    
+    fig.y_range = Range1d(start=0, end=1)
+    
+    fig.extra_y_ranges = {"peak_diff_range": Range1d(secondary_yrange_start, secondary_yrange_end)}
+    fig.add_layout(LinearAxis(y_range_name="peak_diff_range", axis_label="BPM [Hz]"), 'right')  # Add the right y-axis
+    fig.vbar(x=peak_second_middles, top=peaks["BPM"], width=(peak_second_diffs) * 0.9, y_range_name="peak_diff_range", color = 'green', fill_alpha=1, legend_label='BPM')
+    fig.circle(peaks["Times"] / 1000, peaks["Heights"], legend_label='Detected Peaks', color = 'red')
+    fig.vbar(x=peak_second_middles, bottom=accel_bottom,top=accel_top, width=(peak_second_diffs) * 0.5, y_range_name="peak_diff_range", color = fill_color, fill_alpha=1, legend_label='BPM Acceleration')
+
+    fig.line(time_cut, signal_cut, legend_label='Waveform')
+    
+    x_coordinate = np.min(best_peaks["Times"]) / 1000
+    draw_line(fig, 'Segment of most consistent Beats', x_coordinate, 1, vertical=True, color="black", dash="dashed")
+
+    x_coordinate = np.max(best_peaks["Times"]) / 1000
+    draw_line(fig, 'Segment of most consistent Beats', x_coordinate, 1, vertical=True, color="black", dash="dashed")
+
+
+    fig.x_range.start = 0
+    fig.x_range.end = time_cut[-1]
+    y_range_start = 0  # Define the start value for the y-axis range on the left
+    y_range_end = 1   # Define the end value for the y-axis range on the left
+    fig.y_range = Range1d(start=y_range_start, end=y_range_end)  # Set the y-range of the left y-axis
+    fig.xaxis.ticker.num_minor_ticks = 9
+    text_annotation1 = Label(x=0, y=0, text="sensitivity = "+f"{threshold:.2f}", text_font_size="12pt", background_fill_color = "white")
+    fig.add_layout(text_annotation1)
+
+def plot_centered(fig, signal, time, peaks, best_peaks, chunk_size):
+    """Draws the similarness plot of the given signal and peaks.
+    Will contain both peakshapes of the best series in blue, aswell as the peakshapes outside the best series in gray.
+    The point where the peaks were detected is marked by a red circle.
+
+    Parameters
+    ----------
+    fig : figure
+        The figure to draw into.
+    signal : array
+        np.array that contains the normalized waveform.   
+    time : array
+        np.array that contains the corresponding time of each sample in ms.  
+    peaks : dict
+        A dict containing all the required peakdata.    
+    best_peaks : dict
+        A dict containing all the required peakdata of the best series.
+    chunk_size : int
+        Width of the window of samples that is shown.
+    """
+    
+    cutoff = 0.01
+    
+    not_best_peak_samples = np.setdiff1d(peaks["Samples"], best_peaks["Samples"])
+    not_chunks = peak_chunks(signal, not_best_peak_samples, chunk_size)
+    xs, ys = [], []
+    x_axis = time[0:chunk_size] - time[chunk_size // 2]
+    for i in np.arange(not_chunks.shape[0]):
+        chunk = not_chunks[i]
+        peakSample = not_best_peak_samples[i]
+        xs.append( x_axis[chunk > cutoff])
+        ys.append((chunk[chunk > cutoff]))
+
+    fig.multi_line(xs, ys, alpha=0.3, color = 'gray', legend_label='Peakshape outside best series')
+    max_height = 1
+    
+    best_peak_samples = best_peaks["Samples"]
+    chunks = peak_chunks(signal, best_peak_samples, chunk_size)
+
+    xs, ys = [], []
+    x_axis = time[0:chunk_size] - time[chunk_size//2]
+    for i in np.arange(chunks.shape[0]):
+        chunk = chunks[i]
+        peakSample = best_peak_samples[i]
+        xs.append(x_axis[chunk > cutoff])
+        ys.append((chunk[chunk > cutoff]))
+        new_max = max(chunk[chunk > cutoff])
+        if(new_max > max_height):
+            max_height = new_max
+        
+    fig.multi_line(xs, ys, alpha=0.5, color = 'blue', legend_label='Peakshape best series')
+    fig.circle(0, 1, size=10, fill_color='red', legend_label='detected peaks')
+    fig.x_range.start = min(x_axis)
+    max_xrange = max(x_axis)
+    fig.x_range.end = max_xrange
+    fig.y_range.start = 0
+    max_yrange = min(max_height + 0.05, 2)
+    fig.y_range.end = max_yrange
+    fig.xaxis.ticker.num_minor_ticks = 9
+
+def plot_stat(fig, best_peaks):
+    """Draws the stat plot of the given peaks.
+    Will contain difference between two peaks at the height of the left peak as red circles, aswell as a histogram showing the distribution of peak differences.
+    On the top left the standard devation of the peaks aswell as the mean will be annotated.
+
+    Parameters
+    ----------
+    fig : figure
+        The figure to draw into.
+    best_peaks : dict
+        A dict containing all the required peakdata of the best series.
+    """
+    
+    x_data = best_peaks["Diffs"]  
+    num_bins = int(1 + (3.322 * np.log(len(x_data))))
+
+    mean_x = best_peaks["MeanDiff"] 
+    std_x = best_peaks["StdDiff"] 
+
+    number_of_standard_devations = 5
+    max_dist= max(abs(mean_x - min(x_data)),abs(mean_x + max(x_data)))
+    hist, bin_edges = np.histogram(x_data, bins=num_bins, density=True)
+    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+    mean_bins = np.mean(bin_centers)
+    std_bins = np.std(bin_centers)
+    binsize=bin_centers[1] - bin_centers[0]
+    max_count_index = np.argmax(hist)
+    bin_height = hist[max_count_index]
+    fig.quad(top=hist, bottom=0, left=bin_edges[:-1], right=bin_edges[1:], fill_color="blue", line_color="white", alpha=0.7, legend_label='Probability density')
+    fig.y_range = Range1d(start=0, end=bin_height * 1.10)
+    fig.extra_y_ranges = {"amplitude_range": Range1d(start=0, end=1)}
+    fig.add_layout(LinearAxis(y_range_name="amplitude_range", axis_label="Amplitude [a.u.]"), 'right')  # Add the right y-axis
+    plot_heights = best_peaks["Heights"]
+    fig.circle(x_data,plot_heights[1:], size=7, fill_color='red', legend_label='Peak Transient Time', y_range_name="amplitude_range")
+    fig.xaxis.ticker.num_minor_ticks = 9
+    x_coordinate = mean_x - std_x
+
+    draw_line(fig, 'standard deviation', x_coordinate, bin_height/4, vertical=True, color="black", dash="dashed")
+    x_coordinate = mean_x + std_x
+    draw_line(fig, 'standard deviation', x_coordinate, bin_height/4, vertical=True, color="black", dash="dashed")
+    x_coordinate = mean_x
+    draw_line(fig, 'mean', x_coordinate, bin_height/4, vertical=True, color="red", dash="dashed")
+
+    text_annotation1 = Label(x=0, y=fig.height-100, x_units="screen", y_units='screen', text="standard deviation = "+f"{std_x:.2f}"+" ms", text_font_size="16pt")
+    text_annotation2 = Label(x=0, y=fig.height-125, x_units="screen", y_units='screen', text="mean = "+f"{mean_x:.2f}"+" ms", text_font_size="16pt")
+    fig.add_layout(text_annotation1)
+    fig.add_layout(text_annotation2)
+    
+    fig.x_range.start = mean_x - (number_of_standard_devations) * std_x
+    fig.x_range.end = mean_x + (number_of_standard_devations) * std_x
+    fig.legend.location = 'top_right'
+    return fig
+
 def pad_and_stack_arrays(arrays):
+    """Takes arrays of different lengths and pads them with zeroes to have the same length, then stacks them into a 2d array.
+
+    Parameters
+    ----------
+    arrays : array of arrays
+        Arrays of differing lengths.
+        
+    Returns
+    -------
+    stacked_array : 2darray
+        A np.ndarray containing all arrays padded with zeroes.
+    """
+    
     # Find the length of the longest array
     max_length = max(len(arr) for arr in arrays)
     
@@ -220,371 +861,6 @@ def pad_and_stack_arrays(arrays):
     
     return stacked_array
 
-def plot_centered(fig, signal, time, peaks, norm_envelope,downsamplerate):
-    # Update centered segments plot here
-    segment_width = int(400/downsamplerate)
-    cutoff = -1
-    maxheight = 1
-    startvals = []
-    endvals = []
-    xs, ys, ys2, peakheights = [], [], [], []
-    for peak in peaks:
-        start = max(1, peak - segment_width)
-        end = min(len(time), peak + segment_width)
-        segment = signal[start:end]
-        #segment2= norm_envelope[start:end]
-        centered_x = time[start:end] - time[peak]
-        xs.append( centered_x[segment >cutoff])
-        ys.append((segment[segment>cutoff])/signal[peak])
-        #ys2.append((segment2[segment>cutoff])/max(segment2))
-        peakheights.append(signal[peak]/max(segment))
-        newmax = max((segment[segment>cutoff])/signal[peak])
-        if(newmax > maxheight):
-            maxheight = newmax
-        startvals.append(min(centered_x))
-        endvals.append(max(centered_x))
-    #colors = Category20[len(peaks)]
-    
-    fig.multi_line(xs, ys, alpha=0.5, legend_label='centered Waveform')
-    #fig.multi_line(xs, ys2, alpha=0.5, legend_label='centered Waveform', color='orange')
-    fig.circle(0, 1, size=10, fill_color='red', legend_label='detected peaks')
-    fig.x_range.start = min(startvals)
-    fig.x_range.end = max(endvals)
-    fig.y_range.start = 0
-    fig.y_range.end = min(maxheight + 0.05,2)
-    fig.xaxis.ticker.num_minor_ticks = 9
-    return fig
-
-def plot_peakdiff(fig, signal, time, peaks):
-    cutoff = 0.01
-    diff_times = []
-    xs, ys = [],[]
-    for i in range(len(peaks) - 2):
-        start = peaks[i]  # Start index at the current peak
-        end = peaks[i + 2]  # End index at the next peak
-        segment = signal[start:end]
-        peakdiff_x = time[start:end] - time[start]  # Adjust x-axis values relative to the start
-        diff_times.append(time[peaks[i+1] - peaks[i]])
-        xs.append(peakdiff_x[segment >cutoff])
-        ys.append(segment[segment >cutoff])
-        fig.circle(diff_times[i], signal[peaks[i+1]], size=10, fill_color='red', legend_label='detected Peak') 
-    
-    fig.multi_line(xs, ys, alpha=0.5, legend_label='Peak Waveform')
-    zoomfact = 5
-    data_center = round(np.mean(diff_times))
-    segment_width = zoomfact*round(np.std(diff_times))
-    fig.x_range.start = data_center - segment_width
-    fig.x_range.end = data_center + segment_width
-    fig.y_range.start = 0
-    fig.y_range.end = 1
-    fig.xaxis.ticker.num_minor_ticks = 9
-    return fig
-
-    
-def plot_waveform(fig, signal, time, peaks,peaktimes,frame_rate,best_series_times,sensitivity,bpm_target,bpm_window,envelope):
-    cutoff = 0.01
-
-    signal_cut = signal[signal >cutoff]
-    time_cut = time[signal >cutoff]/1000
-    time_xax = time/1000
-    visible_start = 0
-    visible_end = max(time_xax)
-    visible_indices = np.where((time_xax >= visible_start) & (time_xax <= visible_end))
-    fig.y_range = Range1d(start=0, end=1)
-    peak_differences = np.diff(peaktimes)
-    peak_differences_best = np.diff(best_series_times)
-    #peak_differences_bpm = np.where(peak_differences == 0, -1, peak_differences) # a very dirty fix
-    peak_bpm = (60*1000)/peak_differences
-    peak_bpm_best = (60*1000)/peak_differences_best
-    peak_middles = ((time_xax[peaks[:-1]]+time_xax[peaks[1:]])/2)
-    resolution = 0.01
-    visible_peaks = np.where((peak_middles >= visible_start) & (peak_middles <= visible_end))
-    diff_mean = np.mean(peak_bpm_best)
-    diff_stdev = np.std(peak_bpm_best)
-    accel = np.gradient(peak_bpm)
-    norm_accel = accel/max(accel)
-    accel_best = np.gradient(peak_bpm_best)
-    norm_accel_best = accel/max(accel_best)
-    zoom_factor = 10
-    fill_color = []
-    for acceleration in accel:
-        if acceleration < 0:
-            fill_color.append('darkred')  # Red for negative acceleration
-        else:
-            fill_color.append('darkorange')  # Orange for positive acceleration
-    if(not bpm_target):
-        if(not bpm_window):
-            secyrange_start = max(0,diff_mean-zoom_factor*diff_stdev)
-            secyrange_end = diff_mean+zoom_factor*diff_stdev
-        else:
-            secyrange_start = max(0,diff_mean-bpm_window)
-            secyrange_end = diff_mean+bpm_window
-        accel_bottom = secyrange_start
-        accel_top = accel_bottom + np.abs(accel)
-    else:
-        if(not bpm_window):
-            secyrange_start = 0
-            secyrange_end = bpm_target/0.75
-        else:
-            secyrange_start = bpm_target - bpm_window
-            secyrange_end = bpm_target + bpm_window
-        accel_bottom = 0
-        accel_top = np.abs(accel)
-    
-    fig.extra_y_ranges = {"peak_diff_range": Range1d(secyrange_start, secyrange_end)}
-    fig.add_layout(LinearAxis(y_range_name="peak_diff_range", axis_label="BPM [Hz]"), 'right')  # Add the right y-axis
-    fig.vbar(x=peak_middles, top=peak_bpm, width=(peak_differences/1000)*0.9, y_range_name="peak_diff_range", color = 'green', fill_alpha=1, legend_label='BPM')
-    #fig.line(x=peak_middles,y=(norm_accel_best*0.10)+0.5, line_color="darkgoldenrod", legend_label= 'acceleration of BPM', line_width=3)
-    #fig.line(x=[0,len(time)],y=[0.5,0.5], line_color="black", line_dash="dotted")
-    #fig.vbar(x=peak_middles, bottom=peak_bpm + (np.abs(accel)*-1),top=peak_bpm , width=(peak_differences/1000)*0.5, y_range_name="peak_diff_range", color = fill_color, fill_alpha=1, legend_label='BPM Acceleration')
-    fig.circle(time_xax[peaks], signal[peaks], legend_label='Detected Peaks', color = 'red')
-    #accel_start = max(0,diff_mean-zoom_factor*diff_stdev)
-    fig.vbar(x=peak_middles, bottom=accel_bottom,top=accel_top , width=(peak_differences/1000)*0.5, y_range_name="peak_diff_range", color = fill_color, fill_alpha=1, legend_label='BPM Acceleration')
-    fig.line(time_cut, signal_cut, legend_label='Waveform')
-    #fig.line(time/1000, envelope, line_color="orange", legend_label='Envelope') 
-    
-    x_coordinate = best_series_times[0]/1000
-
-    fig.line(x=[x_coordinate,x_coordinate], y=[0,1], line_width=2, line_dash="dashed", line_color="black", legend_label= 'Segment of most consistent Beats')
-    x_coordinate = max(best_series_times)/1000
-
-    fig.line(x=[x_coordinate,x_coordinate], y=[0,1], line_width=2, line_dash="dashed", line_color="black")
-
-    fig.x_range.start = visible_start
-    fig.x_range.end = visible_end
-    y_range_start = 0  # Define the start value for the y-axis range on the left
-    y_range_end = 1   # Define the end value for the y-axis range on the left
-    fig.y_range = Range1d(start=y_range_start, end=y_range_end)  # Set the y-range of the left y-axis
-    fig.xaxis.ticker.num_minor_ticks = 9
-    text_annotation1 = Label(x=0, y=0, text="sensitivity = "+f"{sensitivity:.2f}", text_font_size="12pt", background_fill_color = "white")
-    fig.add_layout(text_annotation1)
-    
-    return fig
-
-def plot_stat(fig, peak_times, y_data,nbins):
-    if(nbins == 0):
-        nbins = int(1 + (3.322 * np.log(len_series)))
-    x_data = np.diff(peak_times)
-    mean_x = np.mean(x_data)
-    std_x = np.std(x_data)
-
-    stddeviations = 5
-    max_dist= max(abs(mean_x-min(x_data)),abs(mean_x+max(x_data)))
-    x_curve = np.linspace(mean_x-stddeviations*std_x, mean_x+stddeviations*std_x, 1000)
-    y_curve = np.linspace(min(y_data)-50, max(y_data)+50, 1000)
-
-    # Calculate the unnormalized Gaussian values
-    x_gaussian = np.exp(-0.5 * ((x_curve - mean_x) / std_x)**2) / (std_x * np.sqrt(2 * np.pi))
-    area_under_curve= np.trapz(x_gaussian, x_curve)
-    x_gaussian = x_gaussian / area_under_curve
-    # Plot the curves
-    num_bins = nbins
-    hist, bin_edges = np.histogram(x_data, bins=num_bins, density=True)
-    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
-    mean_bins = np.mean(bin_centers)
-    std_bins = np.std(bin_centers)
-    binsize=bin_centers[1]-bin_centers[0]
-    max_count_index = np.argmax(hist)
-    num_elements_in_highest_bin = hist[max_count_index]
-    fig.quad(top=hist, bottom=0, left=bin_edges[:-1], right=bin_edges[1:], fill_color="blue", line_color="white", alpha=0.7, legend_label='Probability density')
-    row_spacing = max(x_gaussian)/(num_elements_in_highest_bin)
-    fig.y_range = Range1d(start=0, end=num_elements_in_highest_bin)
-    peakamps =y_data[1:]
-    fig.extra_y_ranges = {"amplitude_range": Range1d(start=0, end=1)}
-    fig.add_layout(LinearAxis(y_range_name="amplitude_range", axis_label="Amplitude [a.u.]"), 'right')  # Add the right y-axis
-    fig.line(x_curve, x_gaussian, color= 'red', line_width = 2.5, legend_label='Gaussian distribution')
-    fig.circle(x_data,peakamps, size=7, fill_color='red', legend_label='Peak Transient Time',y_range_name="amplitude_range")
-
-    fig.xaxis.ticker.num_minor_ticks = 9
-    xshift = 0
-    
-    x_coordinate = mean_x - std_x
-
-    fig.line(x=[x_coordinate,x_coordinate], y=[0,num_elements_in_highest_bin/4], line_width=2, line_dash="dashed", line_color="black", legend_label= 'standard deviation')
-    x_coordinate = mean_x + std_x
-
-    fig.line(x=[x_coordinate,x_coordinate], y=[0,num_elements_in_highest_bin/4], line_width=2, line_dash="dashed", line_color="black")
-    x_coordinate = mean_x
-
-    fig.line(x=[x_coordinate,x_coordinate], y=[0,num_elements_in_highest_bin/4], line_width=2, line_color="black", legend_label= 'mean')
-
-    text_annotation1 = Label(x=0, y=fig.height-100, x_units="screen", y_units='screen', text="standard deviation = "+f"{std_x:.2f}"+" ms", text_font_size="16pt")
-    text_annotation2 = Label(x=0, y=fig.height-125, x_units="screen", y_units='screen', text="mean = "+f"{mean_x:.2f}"+" ms", text_font_size="16pt")
-    fig.add_layout(text_annotation1)
-    fig.add_layout(text_annotation2)
-
-    fig.x_range.start = mean_x-(stddeviations)*std_x
-    fig.x_range.end = mean_x+(stddeviations)*std_x
-    fig.legend.location = 'top_right'
-
-    return fig
-
-def peakrefiner_maximum(data, peak_location, length):
-    center_index = peak_location
-    array = data
-    search_range = length
-
-    
-    max_gradient = float('-inf')
-    max_gradient_index = -1
-    for i in range(center_index - search_range, center_index + search_range + 1):     
-        gradient = array[i]
-        
-        if gradient > max_gradient:
-            max_gradient = gradient
-            max_gradient_index = i
-    
-    return max_gradient_index
-    
-def peakrefiner_center_of_weight(data, peak_location, length):
-    center_index = peak_location
-    search_range = length
-    start_index = max(center_index - search_range, 0)
-    end_index = min(center_index + search_range + 1, len(data))
-    array = data[start_index:end_index]
-
-    indices = np.arange(len(array))
-    weighted_indices = indices * np.power(array, 1.5)
-    total_weighted_index = np.sum(weighted_indices)
-    total_weight = np.sum(np.power(array, 1.5))
-
-    if total_weight == 0:
-        raise ValueError("Array has zero total weight, cannot calculate center of gravity.")
-
-    cog_index = int(total_weighted_index / total_weight)
-    return start_index + cog_index    
-    
-    
-    
-'''   
-def peakrefiner_center_of_weight(data, peak_location, length):
-    center_index = peak_location
-    search_range = length
-    search_range_indices = range(min(center_index - search_range,0), max(center_index + search_range + 1,len(data)))
-    array = data[search_range_indices]
-
-    total_weighted_index = 0
-    total_weight = 0
-    order = 1.5
-    for index, value in enumerate(array):
-        total_weighted_index += index * (value)**order
-        total_weight += (value)**order
-
-    if total_weight == 0:
-        raise ValueError("Array has zero total weight, cannot calculate center of gravity.")
-
-    cog_index = int(total_weighted_index / total_weight)
-    return search_range_indices[cog_index]
-'''   
-def peakrefiner_leftmost(data, peak_location, length):
-    center_index = peak_location
-    search_range = length
-    search_range_indices = range(center_index - search_range, center_index + search_range + 1)
-    array = data[search_range_indices]
-   
-    # Find the indices of the three highest points in descending order
-    sorted_indices = sorted(range(len(array)), key=lambda i: array[i], reverse=True)
-    highest_indices = sorted_indices[:2]
-
-    # Return the index of the leftmost highest point
-    leftmost_index = min(highest_indices)
-    return search_range_indices[leftmost_index]
-    
-    
-def peakrefiner_find_peak_to_right(data, peak_location, search_range):
-    end_index = min(peak_location + search_range + 1, len(data))
-    array = data[peak_location:end_index]
-
-    if len(array) == 0:
-        raise ValueError("No data in the search range.")
-
-    peak_index = np.argmax(array) + peak_location
-    return peak_index
-    
-def peakrefiner_rightmost(data, peak_location, length):
-    center_index = peak_location
-    search_range = length
-    search_range_indices = range(center_index - search_range, center_index + search_range + 1)
-    array = data[search_range_indices]
-   
-    # Find the indices of the three highest points in descending order
-    sorted_indices = sorted(range(len(array)), key=lambda i: array[i], reverse=True)
-    highest_indices = sorted_indices[:2]
-
-    # Return the index of the leftmost highest point
-    leftmost_index = max(highest_indices)
-    return search_range_indices[leftmost_index]
-
-
-def correlator(data, peak_locations, length):
-    segments = []
-    indexes = peak_locations
-    range_value = length
-    for idx in indexes:
-        if idx < range_value or idx >= len(data) - range_value:
-            continue
-        
-        segment = data[idx - range_value : idx + range_value + 1]
-        segments.append(segment)
-    alignment_shifts = []
-    target_segment = segments[10]
-    for segment in segments:
-        segment_n = segment / np.linalg.norm(segment)
-        target_segment_n = target_segment / np.linalg.norm(target_segment)
-        cross_corr = correlate(target_segment_n, segment_n, mode='full')
-        max_corr_index = np.argmax(cross_corr)
-        shift = max_corr_index - len(target_segment) + 1
-        alignment_shifts.append(shift)
-    return np.sum([alignment_shifts,peak_locations], axis=0)
-
-
-def create_envelope(x_data, signal, window_size):
-    """
-    Create an envelope for the input signal using a moving average.
-
-    Parameters:
-        signal (numpy.ndarray): Input signal.
-        window_size (int): Size of the moving average window.
-
-    Returns:
-        numpy.ndarray: Envelope of the signal.
-    """
-    absolute_signal = np.abs(signal)
-    envelope = moving_average(absolute_signal, 30)
-    return envelope
-'''  
-def create_envelope1(x_data,signal, window_size):
-    """
-    Create an envelope for the input signal using a moving average.
-
-    Parameters:
-        signal (numpy.ndarray): Input signal.
-        window_size (int): Size of the moving average window.
-
-    Returns:
-        numpy.ndarray: Envelope of the signal.
-    """
-    smoothing_factor = 0.5
-    print(len(x_data))
-    print(len(signal))
-    spline = LSQUnivariateSpline(x_data, signal, t=None, k=3)
-    envelope = spline(x_data)
-    return envelope
-'''  
-def moving_average(data, window_size):
-    """
-    Apply a moving average smoothing to the input data.
-
-    Parameters:
-        data (numpy.ndarray): Input data to be smoothed.
-        window_size (int): Size of the moving average window.
-
-    Returns:
-        numpy.ndarray: Smoothed data.
-    """
-    window = np.ones(window_size) / float(window_size)
-    smoothed_data = np.convolve(data, window, mode='same')
-    return smoothed_data
 
 if __name__ == '__main__':
     main()

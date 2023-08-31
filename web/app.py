@@ -63,14 +63,14 @@ def rerun(uuid):
 def run(uuid):
     filename = str(request.form['filename'])
     output_filename = str(request.form['output_filename'])
-    alg = str(request.form['algSelect'])
     bpm = str(request.form['bpm'])
-    bpmWin = str(request.form['bpmWin'])
+    chunk_size = str(request.form['chunk_size'])
+    bpm_win = str(request.form['bpm_win'])
     threshold = str(request.form['threshold'])
     sample_size = str(request.form['sample'])
     rounding = str(request.form['rounding'])
-    channel = str(request.form['channelNumber'])
-    downsample_rate = str(request.form['downsampleRate'])
+    channel = str(request.form['channel_number'])
+    downsample_rate = str(request.form['downsample_rate'])
 
     processes[uuid] = filename
 
@@ -80,10 +80,9 @@ def run(uuid):
         '--work-dir', "static/upload/{}/".format(uuid),
         '-f', filename,
         '-o', output_filename,
-        '-d', downsample_rate,
-        '-a', alg,
         '-b', bpm,
-        '-bw', bpmWin,
+        '-bw', bpm_win,
+        '-cz', chunk_size,
         '-t', threshold,
         '-l', sample_size,
         '-r', rounding,
@@ -91,13 +90,17 @@ def run(uuid):
         '-v'
     ]
 
-    if request.form['webMode']:
+    if request.form['web_mode']:
         web_mode = [
+            '-w',
             '-x', str(request.form['xwide']),
             '-y', str(request.form['yhigh'])
             ]
         debug_command = debug_command + web_mode
 
+    if request.form.get("correlation"):
+        correlate = ['-cp']
+        debug_command = debug_command + correlate
 
     print("Running {}".format(debug_command))
 
@@ -133,7 +136,7 @@ def download(uuid,output_filename):
     if os.path.exists(csv_path):
         return send_file(csv_path, as_attachment=True, download_name=output_filename)
     else:
-        return render_template('404.html'), 404
+        return "Long request", 503
 
 @app.route('/summaries/<uuid>')
 def get_previous_summaries(uuid):

@@ -2,9 +2,8 @@
 
 import numpy as np
 from bokeh.plotting import figure, show, output_file, save
-from bokeh.models import LinearAxis, Range1d, Label, Legend, LinearColorMapper
+from bokeh.models import LinearAxis, Range1d, Label#, LinearColorMapper
 from bokeh.layouts import row, column
-from bokeh.transform import linear_cmap
 from scipy.io import wavfile
 from scipy.signal import find_peaks, correlate
 from datetime import datetime
@@ -31,21 +30,21 @@ bpm_window = ''
 correlation = True
 
 parser = argparse.ArgumentParser(description='Map transient times')
-parser.add_argument('-f', '--file', dest='filename', type=str, action='store', help='File to open')
-parser.add_argument('-o', '--out', dest='output_filename', type=str, action='store', help='Filename to write output values to')
-parser.add_argument('-t', '--threshold', dest='threshold', default='0.1', type=float, action='store', help='DEFAULT=0.1 Peak detection threshold. Works best 0.1 and above. Setting too high/low can cause misdetection.')
-parser.add_argument('-c', '--channel', dest='channel', default='1', type=int, action='store', help='DEFAULT=1 Channel to get the waveform from.')
-parser.add_argument('-cz', '--chunksize', dest='chunk_size', default='8.4', type=float, action='store', help='DEFAULT=8.4 Basissize of the chunks used for peakfinding.')
-parser.add_argument('-ex', '--exclusion', dest='exclusion', default='150', type=int, action='store', help='DEFAULT=150 Minimum distance between peaks in ms.')
-parser.add_argument('-r', '--precision', dest='float_prec', default='6', type=int, action='store', help='DEFAULT=6 Number of decimal places to round measurements to. Ex: -p 6 = 261.51927438')
-parser.add_argument('-l', '--length', dest='l_bestseries', default='100', type=int, action='store', help='DEFAULT=100 The length of the series of most consistent beats.')
+parser.add_argument('-f', '--file', dest='filename', type=str, action='store', help='File to open.')
+parser.add_argument('-o', '--out', dest='output_filename', type=str, action='store', help='Filename to write output values to.')
+parser.add_argument('-t', '--threshold', dest='threshold', default='0.1', type=float, action='store', help='DEFAULT=0.1 Peak detection threshold. Works best 0.1 and above. Setting too high/low can cause misdetection. Defaults 0.1.')
+parser.add_argument('-c', '--channel', dest='channel', default='1', type=int, action='store', help='DEFAULT=1 Channel to get the waveform from. Defaults 1.')
+parser.add_argument('-cz', '--chunksize', dest='chunk_size', default='8.4', type=float, action='store', help='DEFAULT=8.4 Basissize of the chunks used for peakfinding. Defaults 8.4.')
+parser.add_argument('-ex', '--exclusion', dest='exclusion', default='150', type=int, action='store', help='DEFAULT=150 Minimum distance between peaks in ms. Defaults 150.')
+parser.add_argument('-r', '--precision', dest='float_prec', default='6', type=int, action='store', help='DEFAULT=6 Number of decimal places to round measurements to. Ex: -p 6 = 261.51927438. Defaults 6.')
+parser.add_argument('-l', '--length', dest='l_bestseries', default='100', type=int, action='store', help='DEFAULT=100 The length of the series of most consistent beats. Defaults 100.')
 parser.add_argument('-w', '--web', dest='web_mode', default=False, action='store_true', help='DEFAULT=False Get some width/height values from/ browser objects for graphing. Defaults false.')
 parser.add_argument('-cp', '--correlation', dest='correlation', default=True, action='store_false', help='DEFAULT=True Decide whether correlation is used as a peakfinder. Defaults True.')
-parser.add_argument('-b', '--bpm-target', dest='bpm_target', default='0', type=float, action='store', help='DEFAULT=0 The target BPM of the song. Use 0 for auto.')
-parser.add_argument('-bw', '--bpm-window', dest='bpm_window', default='0', type=float, action='store', help='DEFAULT=0 Window of BPM that should be visible around the target. Will be scaled to 75%% target height if 0. Default 0.')
+parser.add_argument('-b', '--bpm-target', dest='bpm_target', default='0', type=float, action='store', help='DEFAULT=0 The target BPM of the song. Use 0 for auto. Defaults 0.')
+parser.add_argument('-bw', '--bpm-window', dest='bpm_window', default='0', type=float, action='store', help='DEFAULT=0 Window of BPM that should be visible around the target. Will be scaled to 75%% target height if 0. Defaults 0.')
 parser.add_argument('--work-dir', dest='work_dir', action='store', help='Directory structure to work under.' )
-parser.add_argument('-x', '--x-width', dest='x_wide', default='2000', type=int, action='store', help='DEFAULT=2000 Fixed width for graphs.')
-parser.add_argument('-y', '--plot-height', dest='y_high', default='1340', type=int, action='store', help='DEFAULT=600 Fixed height for single plot.')
+parser.add_argument('-x', '--x-width', dest='x_wide', default='2000', type=int, action='store', help='DEFAULT=2000 Fixed width for graphs. Defaults 2000.')
+parser.add_argument('-y', '--plot-height', dest='y_high', default='1340', type=int, action='store', help='DEFAULT=600 Fixed height for single plot. Defaults 1340.')
 parser.add_argument('-v', '--verbose', help="Set debug logging", action='store_true')
 
 args = parser.parse_args()
@@ -582,7 +581,7 @@ def draw_line(fig, legend_str, pos_sample, chunk_height, vertical=True, color="b
     # Draw vertical line
         fig.line(x=[pos_sample, pos_sample], y=[0, chunk_height],
              line_width=2, line_dash="dashed", line_color=color, legend_label=legend_str)
-
+'''
 def plot_chunks(chunks, time, chunk_size, full_width, plot_height, best_peak_numbers=[]):
     """Draws chunks as a false color plot, might not work right now.
 
@@ -644,7 +643,7 @@ def plot_chunk_sim(chunks, time, chunk_size, full_width, plot_height):
     y_range_start = 0
     y_range_end = min(2,np.max(ys))
     fig_wave.y_range = Range1d(start=y_range_start, end=y_range_end)  # Set the y-range of the left y-axis
-
+'''
 def plot_waveform(fig, signal, time, peaks, best_peaks, bpm_window, bpm_target, threshold):
     """draws the waveform plot of the given signal and peaks.
     Will contain the Signal as Waveform, The BPM as green bars the BPM acceleration as orange and red bars, aswell as all detected peaks as red circles.

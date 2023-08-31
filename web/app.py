@@ -132,7 +132,7 @@ def download(uuid,output_filename):
     if os.path.exists(csv_path):
         return send_file(csv_path, as_attachment=True, download_name=output_filename)
     else:
-        return "Long request", 202
+        return "Long request", 503
 
 @app.route('/summaries/<uuid>')
 def get_previous_summaries(uuid):

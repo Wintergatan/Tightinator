@@ -189,7 +189,7 @@
         fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
 
-            if (['audio/wav', 'audio/x-wav'].includes(file.type)) {
+            if (['audio/wav', 'audio/x-wav'].includes(file.type)) { // Check if the MIME type of the uploaded file indicates .wav
                 const formData = new FormData();
                 formData.append('file', file);
 
@@ -256,7 +256,7 @@
 
             const file = e.dataTransfer.files[0];
 
-            if (file.type === 'audio/wav') {
+            if (['audio/wav', 'audio/x-wav'].includes(file.type)) { // Check if the MIME type of the uploaded file indicates .wav
                 const formData = new FormData();
                 formData.append('file', file);
 

@@ -802,7 +802,14 @@ def plot_stat(fig, best_peaks):
     num_bins = int(1 + (3.322 * np.log(len(x_data))))
 
     mean_x = best_peaks["MeanDiff"] 
-    std_x = best_peaks["StdDiff"] 
+    std_x = best_peaks["StdDiff"]
+
+    # Calculate the Lp error of the distribution.
+    # Potential improvements:
+    #   1. Allow p as user input. Currently, 2 is used.
+    #   2. Instead of the mean of the diffs, use the users provided bpm_target (and corresponding target diff).
+    norm_p = 2
+    data_norm = L_p_norm(x_data-mean_x, norm_p)
 
     number_of_standard_devations = 5
     max_dist= max(abs(mean_x - min(x_data)),abs(mean_x + max(x_data)))
@@ -832,6 +839,11 @@ def plot_stat(fig, best_peaks):
     text_annotation2 = Label(x=0, y=fig.height-125, x_units="screen", y_units='screen', text="mean = "+f"{mean_x:.2f}"+" ms", text_font_size="16pt")
     fig.add_layout(text_annotation1)
     fig.add_layout(text_annotation2)
+
+    # Add Lp annotation
+    text_annotation3 = Label(x=0, y=fig.height - 150, x_units="screen", y_units='screen',
+                             text="L" + norm_p + " error = " + f"{data_norm:.2f}", text_font_size="16pt")
+    fig.add_layout(text_annotation3)
     
     fig.x_range.start = mean_x - (number_of_standard_devations) * std_x
     fig.x_range.end = mean_x + (number_of_standard_devations) * std_x

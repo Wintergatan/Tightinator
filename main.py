@@ -861,6 +861,25 @@ def pad_and_stack_arrays(arrays):
     
     return stacked_array
 
+def L_p_norm(f, p):
+    """ Computes the L^p-norm of the provided vector, ||f||_{L^p}.
+    See https://en.wikipedia.org/wiki/Lp_space for more details.
+    In order to be able to compare norms of vectors of different length, the function will interpret the vector as a
+    function and calculate the norm as a rectangular approximation over the unit interval [0,1].
+
+    Parameters
+    ----------
+    f : array
+        A numpy array containing real values.
+    p : float
+        The power used in the L^p norm. Higher values of p puts more emphasis on the larger elements in vector.
+
+    Returns
+    -------
+    ||f||_{L^p} : float
+        A non-negative real value.
+    """
+    return np.power(np.mean(np.power(np.absolute(f), p)), 1 / p)
 
 if __name__ == '__main__':
     main()

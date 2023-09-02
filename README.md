@@ -7,7 +7,7 @@ The community has long since clamoured for automatic peak detection and generati
 
 ## View the live version
 
-Run analysis at [https://tightinator.fun](TIGHTINATOR.fun)
+Run analysis at [https://tightinator.fun](https://tightinator.fun)
 
 There is a 150M file size limit for upload, and working data will be removed after 7 days on disk.
 

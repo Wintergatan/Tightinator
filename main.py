@@ -2,7 +2,7 @@
 
 import numpy as np
 from bokeh.plotting import figure, show, output_file, save
-from bokeh.models import LinearAxis, Range1d, Label#, LinearColorMapper
+from bokeh.models import ColumnDataSource, CustomJS, LinearAxis, Range1d, Label#, LinearColorMapper
 from bokeh.layouts import row, column
 from scipy.io import wavfile
 from scipy.signal import find_peaks, correlate
@@ -120,7 +120,7 @@ def main():
     center_fig = plot_centered(fig_center, signal, time, peaks, best_peaks, chunk_size)
 
     ### make stat plot
-    fig_stat = figure(title='Statistics plot - most consistent Beats', x_axis_label='Transient Time difference [ms]', y_axis_label='Probability density[1/ms]', width=int(np.floor(full_width/2)), height=plot_height)
+    fig_stat = figure(title='Statistics plot - most consistent Beats', x_axis_label='Transient Time difference [ms]', y_axis_label='Probability density[1/ms]', width=int(np.floor(full_width/2)), height=plot_height, tools="lasso_select,reset,pan,wheel_zoom,box_zoom,save")
     fig_stat.output_backend = 'webgl'
     stat_fig = plot_stat(fig_stat, best_peaks)
 
@@ -818,15 +818,15 @@ def plot_stat(fig, best_peaks):
     fig.extra_y_ranges = {"amplitude_range": Range1d(start=0, end=1)}
     fig.add_layout(LinearAxis(y_range_name="amplitude_range", axis_label="Amplitude [a.u.]"), 'right')  # Add the right y-axis
     plot_heights = best_peaks["Heights"]
-    fig.circle(x_data,plot_heights[1:], size=7, fill_color='red', legend_label='Peak Transient Time', y_range_name="amplitude_range")
+    circle_source = ColumnDataSource(data=dict(x=x_data, y=best_peaks["Heights"][1:]))
+    fig.circle(x='x',y='y', size=7, fill_color='red', legend_label='Peak Transient Time', y_range_name="amplitude_range", source=circle_source)
     fig.xaxis.ticker.num_minor_ticks = 9
-    x_coordinate = mean_x - std_x
-
-    draw_line(fig, 'standard deviation', x_coordinate, bin_height/4, vertical=True, color="black", dash="dashed")
-    x_coordinate = mean_x + std_x
-    draw_line(fig, 'standard deviation', x_coordinate, bin_height/4, vertical=True, color="black", dash="dashed")
-    x_coordinate = mean_x
-    draw_line(fig, 'mean', x_coordinate, bin_height/4, vertical=True, color="red", dash="dashed")
+    line_source_stdmin = ColumnDataSource(data=dict(x=[mean_x - std_x, mean_x - std_x], y=[0,bin_height/4]))
+    fig.line(x='x', y='y', line_width=2, line_dash="dashed", line_color="black", legend_label= 'standard deviation', source = line_source_stdmin)
+    line_source_stdmax = ColumnDataSource(data=dict(x=[mean_x + std_x, mean_x + std_x], y=[0,bin_height/4]))
+    fig.line(x='x', y='y', line_width=2, line_dash="dashed", line_color="black", legend_label= 'standard deviation', source = line_source_stdmax)
+    line_source_mean = ColumnDataSource(data=dict(x=[mean_x, mean_x], y=[0,bin_height/4]))
+    fig.line(x='x', y='y', line_width=2, line_dash="dashed", line_color="red", legend_label= 'mean', source = line_source_mean)
 
     text_annotation1 = Label(x=0, y=fig.height-100, x_units="screen", y_units='screen', text="standard deviation = "+f"{std_x:.2f}"+" ms", text_font_size="16pt")
     text_annotation2 = Label(x=0, y=fig.height-125, x_units="screen", y_units='screen', text="mean = "+f"{mean_x:.2f}"+" ms", text_font_size="16pt")
@@ -836,6 +836,28 @@ def plot_stat(fig, best_peaks):
     fig.x_range.start = mean_x - (number_of_standard_devations) * std_x
     fig.x_range.end = mean_x + (number_of_standard_devations) * std_x
     fig.legend.location = 'top_right'
+    circle_source.selected.js_on_change('indices', CustomJS(args=dict(circle_source = circle_source, text_annotation1 = text_annotation1, text_annotation2 = text_annotation2, line_source_stdmin = line_source_stdmin, line_source_stdmax = line_source_stdmax, line_source_mean = line_source_mean, all_mean = mean_x, all_std = std_x), code="""
+        const selected_indices = circle_source.selected.indices;
+        if (selected_indices.length > 0) {
+            //calculate mean and stdev
+            const mean = selected_indices.reduce((a, b) => a + circle_source.data.x[b], 0) / selected_indices.length;
+            const stdev = Math.sqrt(selected_indices.reduce((a, b) => a + Math.pow(circle_source.data.x[b] - mean, 2), 0) / selected_indices.length);
+            // write into the annotation boxes
+            text_annotation1.text = "standard deviation = " + stdev.toFixed(2) + " ms";
+            text_annotation2.text = "mean = " + mean.toFixed(2) + " ms";
+            // redraw lines
+            line_source_stdmin.data = { x: [mean-stdev,mean-stdev], y: line_source_stdmin.data.y };
+            line_source_stdmax.data = { x: [mean+stdev,mean+stdev], y: line_source_stdmin.data.y };
+            line_source_mean.data = { x: [mean,mean], y: line_source_stdmin.data.y };
+        } else {
+            // on reset --> no circles selected
+            text_annotation1.text = "standard deviation = "+ all_std.toFixed(2) +" ms";
+            text_annotation2.text = "mean = "+ all_mean.toFixed(2) +" ms";
+            line_source_stdmin.data = { x: [all_mean-all_std,all_mean-all_std], y: line_source_stdmin.data.y };
+            line_source_stdmax.data = { x: [all_mean+all_std,all_mean+all_std], y: line_source_stdmin.data.y };
+            line_source_mean.data = { x: [all_mean,all_mean], y: line_source_stdmin.data.y };
+        }
+    """))
     return fig
 
 def pad_and_stack_arrays(arrays):

@@ -2,7 +2,7 @@
 
 import numpy as np
 from bokeh.plotting import figure, show, output_file, save
-from bokeh.models import ColumnDataSource, CustomJS, LinearAxis, Range1d, Label#, LinearColorMapper
+from bokeh.models import ColumnDataSource, CustomJS, LinearAxis, Range1d, Label, Line#, LinearColorMapper
 from bokeh.layouts import row, column
 from scipy.io import wavfile
 from scipy.signal import find_peaks, correlate
@@ -117,12 +117,12 @@ def main():
     ### make similarness plot
     fig_center = figure(title='Similarness plot - most consistent Beats', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]', width=int(np.floor(full_width/2)), height=plot_height)
     fig_center.output_backend = 'webgl'
-    center_fig = plot_centered(fig_center, signal, time, peaks, best_peaks, chunk_size)
+    line_renderers = plot_centered(fig_center, signal, time, peaks, best_peak_numbers, chunk_size)
 
     ### make stat plot
     fig_stat = figure(title='Statistics plot - most consistent Beats', x_axis_label='Transient Time difference [ms]', y_axis_label='Probability density[1/ms]', width=int(np.floor(full_width/2)), height=plot_height, tools="lasso_select,reset,pan,wheel_zoom,box_zoom,save")
     fig_stat.output_backend = 'webgl'
-    stat_fig = plot_stat(fig_stat, best_peaks)
+    plot_stat(fig_stat, signal, time, peaks, best_peak_numbers, line_renderers)
 
     ### make waveform plot
     fig_wave = figure(title='Waveform plot', x_axis_label='Time [s]', y_axis_label='Amplitude [a.u.]', width=full_width, height=plot_height)
@@ -130,7 +130,7 @@ def main():
     plot_waveform(fig_wave, signal, time, peaks, best_peaks, bpm_window, bpm_target, threshold, downsample_rate, cutoff)
 
     ### plot it
-    layout = column(fig_wave, row(fig_center, stat_fig))
+    layout = column(fig_wave, row(fig_center, fig_stat))
     if args.web_mode:
         print("Writing graphs to {}summary.html".format(work_dir))
         output_file("{}summary.html".format(work_dir), title="Summary Page")
@@ -725,7 +725,7 @@ def plot_waveform(fig, signal, time, peaks, best_peaks, bpm_window, bpm_target, 
     text_annotation1 = Label(x=0, y=0, text="sensitivity = "+f"{threshold:.2f}", text_font_size="12pt", background_fill_color = "white")
     fig.add_layout(text_annotation1)
 
-def plot_centered(fig, signal, time, peaks, best_peaks, chunk_size):
+def plot_centered(fig, signal, time, peaks, best_peak_numbers, chunk_size):
     """Draws the similarness plot of the given signal and peaks.
     Will contain both peakshapes of the best series in blue, aswell as the peakshapes outside the best series in gray.
     The point where the peaks were detected is marked by a red circle.
@@ -747,14 +747,14 @@ def plot_centered(fig, signal, time, peaks, best_peaks, chunk_size):
     """
     
     cutoff = 0.01
-    
-    not_best_peak_samples = np.setdiff1d(peaks["Samples"], best_peaks["Samples"])
-    not_chunks = peak_chunks(signal, not_best_peak_samples, chunk_size)
+    best_peaks = create_peaks(signal, time, peaks["Samples"], best_peak_numbers)
+    not_chunks = peak_chunks(signal, peaks["Samples"], chunk_size)
     xs, ys = [], []
+    
     x_axis = time[0:chunk_size] - time[chunk_size // 2]
     for i in np.arange(not_chunks.shape[0]):
         chunk = not_chunks[i]
-        peakSample = not_best_peak_samples[i]
+        peakSample = peaks["Samples"][i]
         xs.append( x_axis[chunk > cutoff])
         ys.append((chunk[chunk > cutoff]))
 
@@ -765,17 +765,18 @@ def plot_centered(fig, signal, time, peaks, best_peaks, chunk_size):
     chunks = peak_chunks(signal, best_peak_samples, chunk_size)
 
     xs, ys = [], []
+    line_sources, line_renderers = [], []
     x_axis = time[0:chunk_size] - time[chunk_size//2]
     for i in np.arange(chunks.shape[0]):
         chunk = chunks[i]
-        peakSample = best_peak_samples[i]
-        xs.append(x_axis[chunk > cutoff])
-        ys.append((chunk[chunk > cutoff]))
+        line_sources.append(ColumnDataSource(data={'x': x_axis[chunk > cutoff], 'y': chunk[chunk > cutoff]}))
+        line_renderers.append(Line(x='x', y='y', line_color="blue", line_alpha=0.5))
         new_max = max(chunk[chunk > cutoff])
         if(new_max > max_height):
             max_height = new_max
+    for line, source in zip(line_renderers, line_sources):
+        fig.add_glyph(source,line)
         
-    fig.multi_line(xs, ys, alpha=0.5, color = 'blue', legend_label='Peakshape best series')
     fig.circle(0, 1, size=10, fill_color='red', legend_label='detected peaks')
     fig.x_range.start = min(x_axis)
     max_xrange = max(x_axis)
@@ -784,8 +785,9 @@ def plot_centered(fig, signal, time, peaks, best_peaks, chunk_size):
     max_yrange = min(max_height + 0.05, 2)
     fig.y_range.end = max_yrange
     fig.xaxis.ticker.num_minor_ticks = 9
+    return line_renderers
 
-def plot_stat(fig, best_peaks):
+def plot_stat(fig, signal, time, peaks, best_peak_numbers, line_renderers):
     """Draws the stat plot of the given peaks.
     Will contain difference between two peaks at the height of the left peak as red circles, aswell as a histogram showing the distribution of peak differences.
     On the top left the standard devation of the peaks aswell as the mean will be annotated.
@@ -797,7 +799,15 @@ def plot_stat(fig, best_peaks):
     best_peaks : dict
         A dict containing all the required peakdata of the best series.
     """
+
+    # Calculate the next integer
+    last_best_peak_number = best_peak_numbers[-1]
+    next_integer = last_best_peak_number + 1
     
+    # Append the next integer to the list
+    if(next_integer <= np.max(peaks["Numbers"])):
+        best_peak_numbers = np.append(best_peak_numbers, next_integer)
+    best_peaks = create_peaks(signal, time, peaks["Samples"], best_peak_numbers)
     x_data = best_peaks["Diffs"]  
     num_bins = int(1 + (3.322 * np.log(len(x_data))))
 
@@ -836,29 +846,61 @@ def plot_stat(fig, best_peaks):
     fig.x_range.start = mean_x - (number_of_standard_devations) * std_x
     fig.x_range.end = mean_x + (number_of_standard_devations) * std_x
     fig.legend.location = 'top_right'
-    circle_source.selected.js_on_change('indices', CustomJS(args=dict(circle_source = circle_source, text_annotation1 = text_annotation1, text_annotation2 = text_annotation2, line_source_stdmin = line_source_stdmin, line_source_stdmax = line_source_stdmax, line_source_mean = line_source_mean, all_mean = mean_x, all_std = std_x), code="""
-        const selected_indices = circle_source.selected.indices;
-        if (selected_indices.length > 0) {
-            //calculate mean and stdev
-            const mean = selected_indices.reduce((a, b) => a + circle_source.data.x[b], 0) / selected_indices.length;
-            const stdev = Math.sqrt(selected_indices.reduce((a, b) => a + Math.pow(circle_source.data.x[b] - mean, 2), 0) / selected_indices.length);
-            // write into the annotation boxes
-            text_annotation1.text = "standard deviation = " + stdev.toFixed(2) + " ms";
-            text_annotation2.text = "mean = " + mean.toFixed(2) + " ms";
-            // redraw lines
-            line_source_stdmin.data = { x: [mean-stdev,mean-stdev], y: line_source_stdmin.data.y };
-            line_source_stdmax.data = { x: [mean+stdev,mean+stdev], y: line_source_stdmin.data.y };
-            line_source_mean.data = { x: [mean,mean], y: line_source_stdmin.data.y };
-        } else {
-            // on reset --> no circles selected
-            text_annotation1.text = "standard deviation = "+ all_std.toFixed(2) +" ms";
-            text_annotation2.text = "mean = "+ all_mean.toFixed(2) +" ms";
-            line_source_stdmin.data = { x: [all_mean-all_std,all_mean-all_std], y: line_source_stdmin.data.y };
-            line_source_stdmax.data = { x: [all_mean+all_std,all_mean+all_std], y: line_source_stdmin.data.y };
-            line_source_mean.data = { x: [all_mean,all_mean], y: line_source_stdmin.data.y };
-        }
+    circle_source.selected.js_on_change('indices', CustomJS(args=dict(circle_source=circle_source, text_annotation1=text_annotation1, text_annotation2=text_annotation2, line_source_stdmin=line_source_stdmin, line_source_stdmax=line_source_stdmax, line_source_mean=line_source_mean, all_mean=mean_x, all_std=std_x, line_renderers=line_renderers), code="""
+     if (!window.isCallbackQueued) {
+        // Set a timeout to execute the callback after a delay (e.g., 200 milliseconds)
+        window.isCallbackQueued = true;
+        setTimeout(function() {
+            window.isCallbackQueued = false;
+            const selected_indices = circle_source.selected.indices;
+            const lineColorUpdates = {}; // Collect line_color updates
+            
+            line_renderers.forEach((_, i) => {
+                lineColorUpdates[i] = 0;
+            });
+            
+            if (selected_indices.length > 0) {
+                // Calculate mean and stdev
+                const mean = selected_indices.reduce((a, b) => a + circle_source.data.x[b], 0) / selected_indices.length;
+                const stdev = Math.sqrt(selected_indices.reduce((a, b) => a + Math.pow(circle_source.data.x[b] - mean, 2), 0) / selected_indices.length);
+                
+                // Update text annotations
+                text_annotation1.text = "standard deviation = " + stdev.toFixed(2) + " ms";
+                text_annotation2.text = "mean = " + mean.toFixed(2) + " ms";
+                
+                // Update lines
+                line_source_stdmin.data = { x: [mean - stdev, mean - stdev], y: line_source_stdmin.data.y };
+                line_source_stdmax.data = { x: [mean + stdev, mean + stdev], y: line_source_stdmin.data.y };
+                line_source_mean.data = { x: [mean, mean], y: line_source_stdmin.data.y };
+                
+                // Collect line_color updates for selected indices
+                for (let i = 0; i < selected_indices.length; i++) {
+                    const index = selected_indices[i];
+                    lineColorUpdates[index] = 0.5;
+                }
+            } else {
+                // On reset --> no circles selected
+                text_annotation1.text = "standard deviation = " + all_std.toFixed(2) + " ms";
+                text_annotation2.text = "mean = " + all_mean.toFixed(2) + " ms";
+                line_source_stdmin.data = { x: [all_mean - all_std, all_mean - all_std], y: line_source_stdmin.data.y };
+                line_source_stdmax.data = { x: [all_mean + all_std, all_mean + all_std], y: line_source_stdmin.data.y };
+                line_source_mean.data = { x: [all_mean, all_mean], y: line_source_stdmin.data.y };
+
+                for (let i = 0; i < line_renderers.length; i++) {
+                    lineColorUpdates[i] = 0.5;
+                }
+            }
+            
+            // Apply batched line_color updates
+            Object.entries(lineColorUpdates).forEach(([index, color]) => {
+                const renderer = line_renderers[index];
+                if (renderer) {
+                    renderer.line_alpha = { value: color };
+                }
+            });
+        }, 50); // milliseconds delay, adjust as needed
+    }
     """))
-    return fig
 
 def pad_and_stack_arrays(arrays):
     """Takes arrays of different lengths and pads them with zeroes to have the same length, then stacks them into a 2d array.

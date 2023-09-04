@@ -842,7 +842,7 @@ def plot_stat(fig, best_peaks):
 
     # Add Lp annotation
     text_annotation3 = Label(x=0, y=fig.height - 150, x_units="screen", y_units='screen',
-                             text="L" + norm_p + " error = " + f"{data_norm:.2f}", text_font_size="16pt")
+                             text="L" + str(norm_p) + " error = " + f"{data_norm:.2f}"+" ms", text_font_size="16pt")
     fig.add_layout(text_annotation3)
     
     fig.x_range.start = mean_x - (number_of_standard_devations) * std_x

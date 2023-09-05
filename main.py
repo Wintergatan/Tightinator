@@ -2,7 +2,7 @@
 
 import numpy as np
 from bokeh.plotting import figure, show, output_file, save
-from bokeh.models import LinearAxis, Range1d, Label#, LinearColorMapper
+from bokeh.models import ColumnDataSource, CustomJS, LinearAxis, Range1d, Label, Line, TextInput, Button#, LinearColorMapper
 from bokeh.layouts import row, column
 from scipy.io import wavfile
 from scipy.signal import find_peaks, correlate
@@ -117,20 +117,22 @@ def main():
     ### make similarness plot
     fig_center = figure(title='Similarness plot - most consistent Beats', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]', width=int(np.floor(full_width/2)), height=plot_height)
     fig_center.output_backend = 'webgl'
-    center_fig = plot_centered(fig_center, signal, time, peaks, best_peaks, chunk_size)
-
-    ### make stat plot
-    fig_stat = figure(title='Statistics plot - most consistent Beats', x_axis_label='Transient Time difference [ms]', y_axis_label='Probability density[1/ms]', width=int(np.floor(full_width/2)), height=plot_height)
-    fig_stat.output_backend = 'webgl'
-    stat_fig = plot_stat(fig_stat, best_peaks)
+    line_renderers = plot_centered(fig_center, signal, time, peaks, best_peak_numbers, chunk_size)
 
     ### make waveform plot
     fig_wave = figure(title='Waveform plot', x_axis_label='Time [s]', y_axis_label='Amplitude [a.u.]', width=full_width, height=plot_height)
     fig_wave.output_backend = 'webgl'
-    plot_waveform(fig_wave, signal, time, peaks, best_peaks, bpm_window, bpm_target, threshold, downsample_rate, cutoff)
+    button, input_bpm_target, input_bpm_window, circle_source = plot_waveform(fig_wave, signal, time, peaks, best_peaks, bpm_window, bpm_target, threshold, downsample_rate, cutoff)
+
+    ### make stat plot
+    fig_stat = figure(title='Statistics plot - most consistent Beats', x_axis_label='Transient Time difference [ms]', y_axis_label='Probability density[1/ms]', width=int(np.floor(full_width/2)), height=plot_height, tools="lasso_select,reset,pan,wheel_zoom,box_zoom,save")
+    fig_stat.output_backend = 'webgl'
+    plot_stat(fig_stat, signal, time, peaks, best_peak_numbers, line_renderers, circle_source)
+
+
 
     ### plot it
-    layout = column(fig_wave, row(fig_center, stat_fig))
+    layout = column(row(input_bpm_target, input_bpm_window, button), fig_wave, row(fig_center, fig_stat))
     if args.web_mode:
         print("Writing graphs to {}summary.html".format(work_dir))
         output_file("{}summary.html".format(work_dir), title="Summary Page")
@@ -674,7 +676,7 @@ def plot_waveform(fig, signal, time, peaks, best_peaks, bpm_window, bpm_target, 
         The cutoff below which the waveform is not drawn.
     """
 
-    reduced_signal = block_reduce(signal,(downsample_rate,), np.mean)
+    reduced_signal = block_reduce(signal,(downsample_rate,), np.max)
     reduced_time = time[::downsample_rate]
     signal_cut = reduced_signal[reduced_signal > cutoff]
     time_cut = reduced_time[reduced_signal > cutoff] / 1000
@@ -694,18 +696,19 @@ def plot_waveform(fig, signal, time, peaks, best_peaks, bpm_window, bpm_target, 
         else:
             secondary_yrange_start = bpm_target - bpm_window
             secondary_yrange_end = bpm_target + bpm_window
-    accel_bottom = secondary_yrange_start
+    accel_bottom = np.zeros(len(peaks["AccelBPM"])) + secondary_yrange_start
     accel_top = accel_bottom + np.abs(peaks["AccelBPM"])
     peak_second_middles = peaks["TimeMiddles"] / 1000
     peak_second_diffs= peaks["Diffs"] / 1000
-    
+    accel_source = ColumnDataSource(data=dict(x = peak_second_middles, bottom = accel_bottom, top = accel_top, width=(peak_second_diffs) * 0.5, color = fill_color))
     fig.y_range = Range1d(start=0, end=1)
-    
-    fig.extra_y_ranges = {"peak_diff_range": Range1d(secondary_yrange_start, secondary_yrange_end)}
+    sec_y_range = Range1d(secondary_yrange_start, secondary_yrange_end)
+    fig.extra_y_ranges = {"peak_diff_range": sec_y_range}
     fig.add_layout(LinearAxis(y_range_name="peak_diff_range", axis_label="BPM [Hz]"), 'right')  # Add the right y-axis
     fig.vbar(x=peak_second_middles, top=peaks["BPM"], width=(peak_second_diffs) * 0.9, y_range_name="peak_diff_range", color = 'green', fill_alpha=1, legend_label='BPM')
-    fig.circle(peaks["Times"] / 1000, peaks["Heights"], legend_label='Detected Peaks', color = 'red')
-    fig.vbar(x=peak_second_middles, bottom=accel_bottom,top=accel_top, width=(peak_second_diffs) * 0.5, y_range_name="peak_diff_range", color = fill_color, fill_alpha=1, legend_label='BPM Acceleration')
+    circle_source = ColumnDataSource(data=dict(x = peaks["Times"] / 1000, y = peaks["Heights"], colors = ['red'] * len( peaks["Heights"]), alpha = [1]* len( peaks["Heights"])))
+    circle_renderers = fig.circle(x = 'x', y = 'y' , legend_label='Detected Peaks', color = 'colors', alpha = 'alpha', source = circle_source)
+    accel_renderer = fig.vbar(x='x', bottom='bottom',top='top', width='width', y_range_name="peak_diff_range", color = 'color', fill_alpha=1, legend_label='BPM Acceleration', source = accel_source)
 
     fig.line(time_cut, signal_cut, legend_label='Waveform')
     
@@ -724,8 +727,31 @@ def plot_waveform(fig, signal, time, peaks, best_peaks, bpm_window, bpm_target, 
     fig.xaxis.ticker.num_minor_ticks = 9
     text_annotation1 = Label(x=0, y=0, text="sensitivity = "+f"{threshold:.2f}", text_font_size="12pt", background_fill_color = "white")
     fig.add_layout(text_annotation1)
+    window_mean = (secondary_yrange_start + secondary_yrange_end)/2
+    window_size = secondary_yrange_end - secondary_yrange_start
+    input_bpm_target = TextInput(title="BPM target:", value=f'{window_mean:.2f}')
+    input_bpm_window = TextInput(title="BPM window:", value=f'{window_size:.2f}')
+    # Create a CustomJS callback for the button's onclick event
+    callback = CustomJS(args=dict(y_range = sec_y_range, input_bpm_target = input_bpm_target, input_bpm_window = input_bpm_window, accel_source = accel_source, accelerations = np.abs(peaks["AccelBPM"])), code=
+        """
+            const bpm_target = parseFloat(input_bpm_target.value);
+            const bpm_window = parseFloat(input_bpm_window.value);
+            const y_start = Math.max(0,bpm_target-(bpm_window/2));
+            const tops = accelerations.map(element => element + y_start);
+            y_range.start = y_start;
+            y_range.end = bpm_target+(bpm_window/2);
+            const y_starts = new Float64Array(accelerations.length).fill(y_start);
+            console.log(y_starts.length)
+            console.log(tops.length)
+            accel_source.data['bottom'] = y_starts;
+            accel_source.data['top'] = tops;
+            accel_source.change.emit();
+        """)
+    button = Button(label="Rescale BPM")
+    button.js_on_click(callback)
+    return button, input_bpm_target, input_bpm_window, circle_source
 
-def plot_centered(fig, signal, time, peaks, best_peaks, chunk_size):
+def plot_centered(fig, signal, time, peaks, best_peak_numbers, chunk_size):
     """Draws the similarness plot of the given signal and peaks.
     Will contain both peakshapes of the best series in blue, aswell as the peakshapes outside the best series in gray.
     The point where the peaks were detected is marked by a red circle.
@@ -747,14 +773,14 @@ def plot_centered(fig, signal, time, peaks, best_peaks, chunk_size):
     """
     
     cutoff = 0.01
-    
-    not_best_peak_samples = np.setdiff1d(peaks["Samples"], best_peaks["Samples"])
-    not_chunks = peak_chunks(signal, not_best_peak_samples, chunk_size)
+    best_peaks = create_peaks(signal, time, peaks["Samples"], best_peak_numbers)
+    not_chunks = peak_chunks(signal, peaks["Samples"], chunk_size)
     xs, ys = [], []
+    
     x_axis = time[0:chunk_size] - time[chunk_size // 2]
     for i in np.arange(not_chunks.shape[0]):
         chunk = not_chunks[i]
-        peakSample = not_best_peak_samples[i]
+        peakSample = peaks["Samples"][i]
         xs.append( x_axis[chunk > cutoff])
         ys.append((chunk[chunk > cutoff]))
 
@@ -765,17 +791,18 @@ def plot_centered(fig, signal, time, peaks, best_peaks, chunk_size):
     chunks = peak_chunks(signal, best_peak_samples, chunk_size)
 
     xs, ys = [], []
+    line_sources, line_renderers = [], []
     x_axis = time[0:chunk_size] - time[chunk_size//2]
     for i in np.arange(chunks.shape[0]):
         chunk = chunks[i]
-        peakSample = best_peak_samples[i]
-        xs.append(x_axis[chunk > cutoff])
-        ys.append((chunk[chunk > cutoff]))
+        line_sources.append(ColumnDataSource(data={'x': x_axis[chunk > cutoff], 'y': chunk[chunk > cutoff]}))
+        line_renderers.append(Line(x='x', y='y', line_color="blue", line_alpha=0.5))
         new_max = max(chunk[chunk > cutoff])
         if(new_max > max_height):
             max_height = new_max
+    for line, source in zip(line_renderers, line_sources):
+        fig.add_glyph(source,line)
         
-    fig.multi_line(xs, ys, alpha=0.5, color = 'blue', legend_label='Peakshape best series')
     fig.circle(0, 1, size=10, fill_color='red', legend_label='detected peaks')
     fig.x_range.start = min(x_axis)
     max_xrange = max(x_axis)
@@ -784,8 +811,9 @@ def plot_centered(fig, signal, time, peaks, best_peaks, chunk_size):
     max_yrange = min(max_height + 0.05, 2)
     fig.y_range.end = max_yrange
     fig.xaxis.ticker.num_minor_ticks = 9
+    return line_renderers
 
-def plot_stat(fig, best_peaks):
+def plot_stat(fig, signal, time, peaks, best_peak_numbers, line_renderers, circle_source_wav):
     """Draws the stat plot of the given peaks.
     Will contain difference between two peaks at the height of the left peak as red circles, aswell as a histogram showing the distribution of peak differences.
     On the top left the standard devation of the peaks aswell as the mean will be annotated.
@@ -797,7 +825,7 @@ def plot_stat(fig, best_peaks):
     best_peaks : dict
         A dict containing all the required peakdata of the best series.
     """
-    
+    best_peaks = create_peaks(signal, time, peaks["Samples"], best_peak_numbers)
     x_data = best_peaks["Diffs"]  
     num_bins = int(1 + (3.322 * np.log(len(x_data))))
 
@@ -825,15 +853,15 @@ def plot_stat(fig, best_peaks):
     fig.extra_y_ranges = {"amplitude_range": Range1d(start=0, end=1)}
     fig.add_layout(LinearAxis(y_range_name="amplitude_range", axis_label="Amplitude [a.u.]"), 'right')  # Add the right y-axis
     plot_heights = best_peaks["Heights"]
-    fig.circle(x_data,plot_heights[1:], size=7, fill_color='red', legend_label='Peak Transient Time', y_range_name="amplitude_range")
+    circle_source = ColumnDataSource(data=dict(x=x_data, y=best_peaks["Heights"][1:]))
+    fig.circle(x='x',y='y', size=7, fill_color='red', legend_label='Peak Transient Time', y_range_name="amplitude_range", source=circle_source)
     fig.xaxis.ticker.num_minor_ticks = 9
-    x_coordinate = mean_x - std_x
-
-    draw_line(fig, 'standard deviation', x_coordinate, bin_height/4, vertical=True, color="black", dash="dashed")
-    x_coordinate = mean_x + std_x
-    draw_line(fig, 'standard deviation', x_coordinate, bin_height/4, vertical=True, color="black", dash="dashed")
-    x_coordinate = mean_x
-    draw_line(fig, 'mean', x_coordinate, bin_height/4, vertical=True, color="red", dash="dashed")
+    line_source_stdmin = ColumnDataSource(data=dict(x=[mean_x - std_x, mean_x - std_x], y=[0,bin_height/4]))
+    fig.line(x='x', y='y', line_width=2, line_dash="dashed", line_color="black", legend_label= 'standard deviation', source = line_source_stdmin)
+    line_source_stdmax = ColumnDataSource(data=dict(x=[mean_x + std_x, mean_x + std_x], y=[0,bin_height/4]))
+    fig.line(x='x', y='y', line_width=2, line_dash="dashed", line_color="black", legend_label= 'standard deviation', source = line_source_stdmax)
+    line_source_mean = ColumnDataSource(data=dict(x=[mean_x, mean_x], y=[0,bin_height/4]))
+    fig.line(x='x', y='y', line_width=2, line_dash="dashed", line_color="red", legend_label= 'mean', source = line_source_mean)
 
     text_annotation1 = Label(x=0, y=fig.height-100, x_units="screen", y_units='screen', text="standard deviation = "+f"{std_x:.2f}"+" ms", text_font_size="16pt")
     text_annotation2 = Label(x=0, y=fig.height-125, x_units="screen", y_units='screen', text="mean = "+f"{mean_x:.2f}"+" ms", text_font_size="16pt")
@@ -848,7 +876,75 @@ def plot_stat(fig, best_peaks):
     fig.x_range.start = mean_x - (number_of_standard_devations) * std_x
     fig.x_range.end = mean_x + (number_of_standard_devations) * std_x
     fig.legend.location = 'top_right'
-    return fig
+    circle_source.selected.js_on_change('indices', CustomJS(args=dict(circle_source=circle_source, text_annotation1=text_annotation1, text_annotation2=text_annotation2, line_source_stdmin=line_source_stdmin, line_source_stdmax=line_source_stdmax, line_source_mean=line_source_mean, all_mean=mean_x, all_std=std_x, line_renderers=line_renderers, circle_source_wav = circle_source_wav, best_peak_numbers = best_peak_numbers), code="""
+     if (!window.isCallbackQueued) {
+         console.log(circle_source_wav)
+        // Set a timeout to execute the callback after a delay (e.g., 200 milliseconds)
+        window.isCallbackQueued = true;
+        setTimeout(function() {
+            window.isCallbackQueued = false;
+            const selected_indices = circle_source.selected.indices;
+            const lineColorUpdates = {}; // Collect line_color updates
+            const circleUpdatesWav = []; // Collect circle updates
+            const num_circles = circle_source_wav.data['alpha'];
+            line_renderers.forEach((_, i) => {
+                lineColorUpdates[i] = 0;
+            });
+            circle_source_wav.data['alpha'].forEach((_, i) => {
+                circleUpdatesWav[i] = 0.1;
+            });
+            if (selected_indices.length > 0) {
+                // Calculate mean and stdev
+                const mean = selected_indices.reduce((a, b) => a + circle_source.data.x[b], 0) / selected_indices.length;
+                const stdev = Math.sqrt(selected_indices.reduce((a, b) => a + Math.pow(circle_source.data.x[b] - mean, 2), 0) / selected_indices.length);
+                
+                // Update text annotations
+                text_annotation1.text = "standard deviation = " + stdev.toFixed(2) + " ms";
+                text_annotation2.text = "mean = " + mean.toFixed(2) + " ms";
+                
+                // Update lines
+                line_source_stdmin.data = { x: [mean - stdev, mean - stdev], y: line_source_stdmin.data.y };
+                line_source_stdmax.data = { x: [mean + stdev, mean + stdev], y: line_source_stdmin.data.y };
+                line_source_mean.data = { x: [mean, mean], y: line_source_stdmin.data.y };
+                const best_peaks_start = best_peak_numbers[0]
+                // Collect line_color updates for selected indices
+                for (let i = 0; i < selected_indices.length; i++) {
+                    const index = selected_indices[i];
+                    lineColorUpdates[index] = 0.5;
+                    lineColorUpdates[index+1] = 0.5;
+                    // Change color of Circles in waveform plot
+                    circleUpdatesWav[index+best_peaks_start] = 1;
+                    circleUpdatesWav[index+best_peaks_start+1] = 1;
+
+                
+                }
+            } else {
+                // On reset --> no circles selected
+                text_annotation1.text = "standard deviation = " + all_std.toFixed(2) + " ms";
+                text_annotation2.text = "mean = " + all_mean.toFixed(2) + " ms";
+                line_source_stdmin.data = { x: [all_mean - all_std, all_mean - all_std], y: line_source_stdmin.data.y };
+                line_source_stdmax.data = { x: [all_mean + all_std, all_mean + all_std], y: line_source_stdmin.data.y };
+                line_source_mean.data = { x: [all_mean, all_mean], y: line_source_stdmin.data.y };
+
+                for (let i = 0; i < line_renderers.length; i++) {
+                    lineColorUpdates[i] = 0.5;
+                }
+                for (let i = 0; i < num_circles.length; i++) {
+                    circleUpdatesWav[i] = 1;
+                }
+            }
+            circle_source_wav.data['alpha'] = circleUpdatesWav;
+            circle_source_wav.change.emit();
+            // Apply batched line_color updates
+            Object.entries(lineColorUpdates).forEach(([index, color]) => {
+                const renderer = line_renderers[index];
+                if (renderer) {
+                    renderer.line_alpha = { value: color };
+                }
+            });
+        }, 50); // milliseconds delay, adjust as needed
+    }
+    """))
 
 def pad_and_stack_arrays(arrays):
     """Takes arrays of different lengths and pads them with zeroes to have the same length, then stacks them into a 2d array.

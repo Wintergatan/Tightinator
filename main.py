@@ -800,13 +800,6 @@ def plot_stat(fig, signal, time, peaks, best_peak_numbers, line_renderers):
         A dict containing all the required peakdata of the best series.
     """
 
-    # Calculate the next integer
-    last_best_peak_number = best_peak_numbers[-1]
-    next_integer = last_best_peak_number + 1
-    
-    # Append the next integer to the list
-    if(next_integer <= np.max(peaks["Numbers"])):
-        best_peak_numbers = np.append(best_peak_numbers, next_integer)
     best_peaks = create_peaks(signal, time, peaks["Samples"], best_peak_numbers)
     x_data = best_peaks["Diffs"]  
     num_bins = int(1 + (3.322 * np.log(len(x_data))))
@@ -877,6 +870,7 @@ def plot_stat(fig, signal, time, peaks, best_peak_numbers, line_renderers):
                 for (let i = 0; i < selected_indices.length; i++) {
                     const index = selected_indices[i];
                     lineColorUpdates[index] = 0.5;
+                    lineColorUpdates[index+1] = 0.5;
                 }
             } else {
                 // On reset --> no circles selected

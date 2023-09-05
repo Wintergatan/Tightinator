@@ -121,16 +121,7 @@ def main():
     ### make similarness plot
     fig_center = figure(title='Similarness plot - most consistent Beats', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]', width=int(np.floor(full_width/2)), height=plot_height)
     fig_center.output_backend = 'webgl'
-<<<<<<< HEAD
-    line_renderers = plot_centered(fig_center, signal, time, peaks, best_peak_numbers, chunk_size)
-=======
-    center_fig = plot_centered(fig_center, signal, time, peaks, best_peaks, chunk_size)
-
-    ### make stat plot
-    fig_stat = figure(title='Statistics plot - most consistent Beats', x_axis_label='Transient Time difference [ms]', y_axis_label='Probability density[1/ms]', width=int(np.floor(full_width/2)), height=plot_height)
-    fig_stat.output_backend = 'webgl'
-    stat_fig = plot_stat(fig_stat, best_peaks, norm_p)
->>>>>>> f5f7c32... User conf for norm p
+    line_renderers = plot_centered(fig_center, signal, norm_p time, peaks, best_peak_numbers, chunk_size)
 
     ### make waveform plot
     fig_wave = figure(title='Waveform plot', x_axis_label='Time [s]', y_axis_label='Amplitude [a.u.]', width=full_width, height=plot_height)
@@ -826,11 +817,7 @@ def plot_centered(fig, signal, time, peaks, best_peak_numbers, chunk_size):
     fig.xaxis.ticker.num_minor_ticks = 9
     return line_renderers
 
-<<<<<<< HEAD
-def plot_stat(fig, signal, time, peaks, best_peak_numbers, line_renderers, circle_source_wav):
-=======
-def plot_stat(fig, best_peaks, norm_p):
->>>>>>> f5f7c32... User conf for norm p
+def plot_stat(fig, signal, norm_p, time, peaks, best_peak_numbers, line_renderers, circle_source_wav):
     """Draws the stat plot of the given peaks.
     Will contain difference between two peaks at the height of the left peak as red circles, aswell as a histogram showing the distribution of peak differences.
     On the top left the standard devation of the peaks aswell as the mean will be annotated.

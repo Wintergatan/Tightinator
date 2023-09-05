@@ -132,7 +132,7 @@ def main():
 
 
     ### plot it
-    layout = column(fig_wave, row(fig_center, fig_stat),row(input_bpm_target, input_bpm_window, button))
+    layout = column(row(input_bpm_target, input_bpm_window, button), fig_wave, row(fig_center, fig_stat))
     if args.web_mode:
         print("Writing graphs to {}summary.html".format(work_dir))
         output_file("{}summary.html".format(work_dir), title="Summary Page")
@@ -732,20 +732,21 @@ def plot_waveform(fig, signal, time, peaks, best_peaks, bpm_window, bpm_target, 
     input_bpm_target = TextInput(title="BPM target:", value=f'{window_mean:.2f}')
     input_bpm_window = TextInput(title="BPM window:", value=f'{window_size:.2f}')
     # Create a CustomJS callback for the button's onclick event
-    callback = CustomJS(args=dict(y_range = sec_y_range, input_bpm_target = input_bpm_target, input_bpm_window = input_bpm_window, accel_source = accel_source, accelerations = np.abs(peaks["AccelBPM"])), code="""
-    const bpm_target = parseFloat(input_bpm_target.value);
-    const bpm_window = parseFloat(input_bpm_window.value);
-    const y_start = Math.max(0,bpm_target-(bpm_window/2));
-    const tops = accelerations.map(element => element + y_start);
-    y_range.start = y_start;
-    y_range.end = bpm_target+(bpm_window/2);
-    const y_starts = new Float64Array(accelerations.length).fill(y_start);
-    console.log(y_starts.length)
-    console.log(tops.length)
-    accel_source.data['bottom'] = y_starts;
-    accel_source.data['top'] = tops;
-    accel_source.change.emit();
-    """)
+    callback = CustomJS(args=dict(y_range = sec_y_range, input_bpm_target = input_bpm_target, input_bpm_window = input_bpm_window, accel_source = accel_source, accelerations = np.abs(peaks["AccelBPM"])), code=
+        """
+            const bpm_target = parseFloat(input_bpm_target.value);
+            const bpm_window = parseFloat(input_bpm_window.value);
+            const y_start = Math.max(0,bpm_target-(bpm_window/2));
+            const tops = accelerations.map(element => element + y_start);
+            y_range.start = y_start;
+            y_range.end = bpm_target+(bpm_window/2);
+            const y_starts = new Float64Array(accelerations.length).fill(y_start);
+            console.log(y_starts.length)
+            console.log(tops.length)
+            accel_source.data['bottom'] = y_starts;
+            accel_source.data['top'] = tops;
+            accel_source.change.emit();
+        """)
     button = Button(label="Rescale BPM")
     button.js_on_click(callback)
     return button, input_bpm_target, input_bpm_window, circle_source

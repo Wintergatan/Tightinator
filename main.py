@@ -2,7 +2,7 @@
 
 import numpy as np
 from bokeh.plotting import figure, show, output_file, save
-from bokeh.models import ColumnDataSource, CustomJS, LinearAxis, Range1d, Label, Line#, LinearColorMapper
+from bokeh.models import ColumnDataSource, CustomJS, LinearAxis, Range1d, Label, Line, TextInput, Button#, LinearColorMapper
 from bokeh.layouts import row, column
 from scipy.io import wavfile
 from scipy.signal import find_peaks, correlate
@@ -127,10 +127,10 @@ def main():
     ### make waveform plot
     fig_wave = figure(title='Waveform plot', x_axis_label='Time [s]', y_axis_label='Amplitude [a.u.]', width=full_width, height=plot_height)
     fig_wave.output_backend = 'webgl'
-    plot_waveform(fig_wave, signal, time, peaks, best_peaks, bpm_window, bpm_target, threshold, downsample_rate, cutoff)
+    button, input_bpm_target, input_bpm_window = plot_waveform(fig_wave, signal, time, peaks, best_peaks, bpm_window, bpm_target, threshold, downsample_rate, cutoff)
 
     ### plot it
-    layout = column(fig_wave, row(fig_center, fig_stat))
+    layout = column(fig_wave, row(fig_center, fig_stat),row(input_bpm_target, input_bpm_window, button))
     if args.web_mode:
         print("Writing graphs to {}summary.html".format(work_dir))
         output_file("{}summary.html".format(work_dir), title="Summary Page")
@@ -674,7 +674,7 @@ def plot_waveform(fig, signal, time, peaks, best_peaks, bpm_window, bpm_target, 
         The cutoff below which the waveform is not drawn.
     """
 
-    reduced_signal = block_reduce(signal,(downsample_rate,), np.mean)
+    reduced_signal = block_reduce(signal,(downsample_rate,), np.max)
     reduced_time = time[::downsample_rate]
     signal_cut = reduced_signal[reduced_signal > cutoff]
     time_cut = reduced_time[reduced_signal > cutoff] / 1000
@@ -694,18 +694,18 @@ def plot_waveform(fig, signal, time, peaks, best_peaks, bpm_window, bpm_target, 
         else:
             secondary_yrange_start = bpm_target - bpm_window
             secondary_yrange_end = bpm_target + bpm_window
-    accel_bottom = secondary_yrange_start
+    accel_bottom = np.zeros(len(peaks["AccelBPM"])) + secondary_yrange_start
     accel_top = accel_bottom + np.abs(peaks["AccelBPM"])
     peak_second_middles = peaks["TimeMiddles"] / 1000
     peak_second_diffs= peaks["Diffs"] / 1000
-    
+    accel_source = ColumnDataSource(data=dict(x = peak_second_middles, bottom = accel_bottom, top = accel_top, width=(peak_second_diffs) * 0.5, color = fill_color))
     fig.y_range = Range1d(start=0, end=1)
-    
-    fig.extra_y_ranges = {"peak_diff_range": Range1d(secondary_yrange_start, secondary_yrange_end)}
+    sec_y_range = Range1d(secondary_yrange_start, secondary_yrange_end)
+    fig.extra_y_ranges = {"peak_diff_range": sec_y_range}
     fig.add_layout(LinearAxis(y_range_name="peak_diff_range", axis_label="BPM [Hz]"), 'right')  # Add the right y-axis
     fig.vbar(x=peak_second_middles, top=peaks["BPM"], width=(peak_second_diffs) * 0.9, y_range_name="peak_diff_range", color = 'green', fill_alpha=1, legend_label='BPM')
     fig.circle(peaks["Times"] / 1000, peaks["Heights"], legend_label='Detected Peaks', color = 'red')
-    fig.vbar(x=peak_second_middles, bottom=accel_bottom,top=accel_top, width=(peak_second_diffs) * 0.5, y_range_name="peak_diff_range", color = fill_color, fill_alpha=1, legend_label='BPM Acceleration')
+    accel_renderer = fig.vbar(x='x', bottom='bottom',top='top', width='width', y_range_name="peak_diff_range", color = 'color', fill_alpha=1, legend_label='BPM Acceleration', source = accel_source)
 
     fig.line(time_cut, signal_cut, legend_label='Waveform')
     
@@ -724,6 +724,28 @@ def plot_waveform(fig, signal, time, peaks, best_peaks, bpm_window, bpm_target, 
     fig.xaxis.ticker.num_minor_ticks = 9
     text_annotation1 = Label(x=0, y=0, text="sensitivity = "+f"{threshold:.2f}", text_font_size="12pt", background_fill_color = "white")
     fig.add_layout(text_annotation1)
+    window_mean = (secondary_yrange_start + secondary_yrange_end)/2
+    window_size = secondary_yrange_end - secondary_yrange_start
+    input_bpm_target = TextInput(title="BPM target:", value=f'{window_mean:.2f}')
+    input_bpm_window = TextInput(title="BPM window:", value=f'{window_size:.2f}')
+    # Create a CustomJS callback for the button's onclick event
+    callback = CustomJS(args=dict(y_range = sec_y_range, input_bpm_target = input_bpm_target, input_bpm_window = input_bpm_window, accel_source = accel_source, accelerations = np.abs(peaks["AccelBPM"])), code="""
+    const bpm_target = parseFloat(input_bpm_target.value);
+    const bpm_window = parseFloat(input_bpm_window.value);
+    const y_start = Math.max(0,bpm_target-(bpm_window/2));
+    const tops = accelerations.map(element => element + y_start);
+    y_range.start = y_start;
+    y_range.end = bpm_target+(bpm_window/2);
+    const y_starts = new Float64Array(accelerations.length).fill(y_start);
+    console.log(y_starts.length)
+    console.log(tops.length)
+    accel_source.data['bottom'] = y_starts;
+    accel_source.data['top'] = tops;
+    accel_source.change.emit();
+    """)
+    button = Button(label="Rescale BPM")
+    button.js_on_click(callback)
+    return button, input_bpm_target, input_bpm_window
 
 def plot_centered(fig, signal, time, peaks, best_peak_numbers, chunk_size):
     """Draws the similarness plot of the given signal and peaks.

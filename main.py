@@ -119,15 +119,17 @@ def main():
     fig_center.output_backend = 'webgl'
     line_renderers = plot_centered(fig_center, signal, time, peaks, best_peak_numbers, chunk_size)
 
-    ### make stat plot
-    fig_stat = figure(title='Statistics plot - most consistent Beats', x_axis_label='Transient Time difference [ms]', y_axis_label='Probability density[1/ms]', width=int(np.floor(full_width/2)), height=plot_height, tools="lasso_select,reset,pan,wheel_zoom,box_zoom,save")
-    fig_stat.output_backend = 'webgl'
-    plot_stat(fig_stat, signal, time, peaks, best_peak_numbers, line_renderers)
-
     ### make waveform plot
     fig_wave = figure(title='Waveform plot', x_axis_label='Time [s]', y_axis_label='Amplitude [a.u.]', width=full_width, height=plot_height)
     fig_wave.output_backend = 'webgl'
-    button, input_bpm_target, input_bpm_window = plot_waveform(fig_wave, signal, time, peaks, best_peaks, bpm_window, bpm_target, threshold, downsample_rate, cutoff)
+    button, input_bpm_target, input_bpm_window, circle_source = plot_waveform(fig_wave, signal, time, peaks, best_peaks, bpm_window, bpm_target, threshold, downsample_rate, cutoff)
+
+    ### make stat plot
+    fig_stat = figure(title='Statistics plot - most consistent Beats', x_axis_label='Transient Time difference [ms]', y_axis_label='Probability density[1/ms]', width=int(np.floor(full_width/2)), height=plot_height, tools="lasso_select,reset,pan,wheel_zoom,box_zoom,save")
+    fig_stat.output_backend = 'webgl'
+    plot_stat(fig_stat, signal, time, peaks, best_peak_numbers, line_renderers, circle_source)
+
+
 
     ### plot it
     layout = column(fig_wave, row(fig_center, fig_stat),row(input_bpm_target, input_bpm_window, button))
@@ -704,7 +706,8 @@ def plot_waveform(fig, signal, time, peaks, best_peaks, bpm_window, bpm_target, 
     fig.extra_y_ranges = {"peak_diff_range": sec_y_range}
     fig.add_layout(LinearAxis(y_range_name="peak_diff_range", axis_label="BPM [Hz]"), 'right')  # Add the right y-axis
     fig.vbar(x=peak_second_middles, top=peaks["BPM"], width=(peak_second_diffs) * 0.9, y_range_name="peak_diff_range", color = 'green', fill_alpha=1, legend_label='BPM')
-    fig.circle(peaks["Times"] / 1000, peaks["Heights"], legend_label='Detected Peaks', color = 'red')
+    circle_source = ColumnDataSource(data=dict(x = peaks["Times"] / 1000, y = peaks["Heights"], colors = ['red'] * len( peaks["Heights"]), alpha = [1]* len( peaks["Heights"])))
+    circle_renderers = fig.circle(x = 'x', y = 'y' , legend_label='Detected Peaks', color = 'colors', alpha = 'alpha', source = circle_source)
     accel_renderer = fig.vbar(x='x', bottom='bottom',top='top', width='width', y_range_name="peak_diff_range", color = 'color', fill_alpha=1, legend_label='BPM Acceleration', source = accel_source)
 
     fig.line(time_cut, signal_cut, legend_label='Waveform')
@@ -745,7 +748,7 @@ def plot_waveform(fig, signal, time, peaks, best_peaks, bpm_window, bpm_target, 
     """)
     button = Button(label="Rescale BPM")
     button.js_on_click(callback)
-    return button, input_bpm_target, input_bpm_window
+    return button, input_bpm_target, input_bpm_window, circle_source
 
 def plot_centered(fig, signal, time, peaks, best_peak_numbers, chunk_size):
     """Draws the similarness plot of the given signal and peaks.
@@ -809,7 +812,7 @@ def plot_centered(fig, signal, time, peaks, best_peak_numbers, chunk_size):
     fig.xaxis.ticker.num_minor_ticks = 9
     return line_renderers
 
-def plot_stat(fig, signal, time, peaks, best_peak_numbers, line_renderers):
+def plot_stat(fig, signal, time, peaks, best_peak_numbers, line_renderers, circle_source_wav):
     """Draws the stat plot of the given peaks.
     Will contain difference between two peaks at the height of the left peak as red circles, aswell as a histogram showing the distribution of peak differences.
     On the top left the standard devation of the peaks aswell as the mean will be annotated.
@@ -821,7 +824,6 @@ def plot_stat(fig, signal, time, peaks, best_peak_numbers, line_renderers):
     best_peaks : dict
         A dict containing all the required peakdata of the best series.
     """
-
     best_peaks = create_peaks(signal, time, peaks["Samples"], best_peak_numbers)
     x_data = best_peaks["Diffs"]  
     num_bins = int(1 + (3.322 * np.log(len(x_data))))
@@ -861,19 +863,23 @@ def plot_stat(fig, signal, time, peaks, best_peak_numbers, line_renderers):
     fig.x_range.start = mean_x - (number_of_standard_devations) * std_x
     fig.x_range.end = mean_x + (number_of_standard_devations) * std_x
     fig.legend.location = 'top_right'
-    circle_source.selected.js_on_change('indices', CustomJS(args=dict(circle_source=circle_source, text_annotation1=text_annotation1, text_annotation2=text_annotation2, line_source_stdmin=line_source_stdmin, line_source_stdmax=line_source_stdmax, line_source_mean=line_source_mean, all_mean=mean_x, all_std=std_x, line_renderers=line_renderers), code="""
+    circle_source.selected.js_on_change('indices', CustomJS(args=dict(circle_source=circle_source, text_annotation1=text_annotation1, text_annotation2=text_annotation2, line_source_stdmin=line_source_stdmin, line_source_stdmax=line_source_stdmax, line_source_mean=line_source_mean, all_mean=mean_x, all_std=std_x, line_renderers=line_renderers, circle_source_wav = circle_source_wav, best_peak_numbers = best_peak_numbers), code="""
      if (!window.isCallbackQueued) {
+         console.log(circle_source_wav)
         // Set a timeout to execute the callback after a delay (e.g., 200 milliseconds)
         window.isCallbackQueued = true;
         setTimeout(function() {
             window.isCallbackQueued = false;
             const selected_indices = circle_source.selected.indices;
             const lineColorUpdates = {}; // Collect line_color updates
-            
+            const circleUpdatesWav = []; // Collect circle updates
+            const num_circles = circle_source_wav.data['alpha'];
             line_renderers.forEach((_, i) => {
                 lineColorUpdates[i] = 0;
             });
-            
+            circle_source_wav.data['alpha'].forEach((_, i) => {
+                circleUpdatesWav[i] = 0.1;
+            });
             if (selected_indices.length > 0) {
                 // Calculate mean and stdev
                 const mean = selected_indices.reduce((a, b) => a + circle_source.data.x[b], 0) / selected_indices.length;
@@ -887,12 +893,17 @@ def plot_stat(fig, signal, time, peaks, best_peak_numbers, line_renderers):
                 line_source_stdmin.data = { x: [mean - stdev, mean - stdev], y: line_source_stdmin.data.y };
                 line_source_stdmax.data = { x: [mean + stdev, mean + stdev], y: line_source_stdmin.data.y };
                 line_source_mean.data = { x: [mean, mean], y: line_source_stdmin.data.y };
-                
+                const best_peaks_start = best_peak_numbers[0]
                 // Collect line_color updates for selected indices
                 for (let i = 0; i < selected_indices.length; i++) {
                     const index = selected_indices[i];
                     lineColorUpdates[index] = 0.5;
                     lineColorUpdates[index+1] = 0.5;
+                    // Change color of Circles in waveform plot
+                    circleUpdatesWav[index+best_peaks_start] = 1;
+                    circleUpdatesWav[index+best_peaks_start+1] = 1;
+
+                
                 }
             } else {
                 // On reset --> no circles selected
@@ -905,8 +916,12 @@ def plot_stat(fig, signal, time, peaks, best_peak_numbers, line_renderers):
                 for (let i = 0; i < line_renderers.length; i++) {
                     lineColorUpdates[i] = 0.5;
                 }
+                for (let i = 0; i < num_circles.length; i++) {
+                    circleUpdatesWav[i] = 1;
+                }
             }
-            
+            circle_source_wav.data['alpha'] = circleUpdatesWav;
+            circle_source_wav.change.emit();
             // Apply batched line_color updates
             Object.entries(lineColorUpdates).forEach(([index, color]) => {
                 const renderer = line_renderers[index];

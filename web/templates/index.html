@@ -188,7 +188,7 @@
         fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
 
-            if (file.type === 'audio/wav') {
+            if (['audio/wav', 'audio/x-wav'].includes(file.type)) { // Check if the MIME type of the uploaded file indicates .wav
                 const formData = new FormData();
                 formData.append('file', file);
 
@@ -231,6 +231,7 @@
                 xhr.send(formData);
             } else {
                 console.log('Invalid file type. Please select a .wav file.');
+                alert('Invalid file type. Please select a .wav file.'); // Tell the user so they don't think the app is broken
             }
         });
 
@@ -254,7 +255,7 @@
 
             const file = e.dataTransfer.files[0];
 
-            if (file.type === 'audio/wav') {
+            if (['audio/wav', 'audio/x-wav'].includes(file.type)) { // Check if the MIME type of the uploaded file indicates .wav
                 const formData = new FormData();
                 formData.append('file', file);
 
@@ -297,13 +298,14 @@
                 xhr.send(formData);
             } else {
                 console.log('Invalid file type. Please select a .wav file.');
+                alert('Invalid file type. Please select a .wav file.'); // Tell the user so they don't think the app is broken
             }
         });
 
         fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
 
-            if (file.type === 'audio/wav') {
+            if (['audio/wav', 'audio/x-wav'].includes(file.type)) { // Check if the MIME type of the uploaded file indicates .wav
                 const formData = new FormData();
                 formData.append('file', file);
 

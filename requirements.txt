@@ -3,3 +3,4 @@ bokeh
 scipy
 flask
 scikit-image
+markupsafe==2.0.1

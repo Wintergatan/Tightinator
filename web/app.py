@@ -71,6 +71,7 @@ def run(uuid):
     rounding = str(request.form['rounding'])
     channel = str(request.form['channel_number'])
     downsample_rate = str(request.form['downsample_rate'])
+    norm_p = str(request.form['norm_p'])
 
     processes[uuid] = filename
 
@@ -86,6 +87,7 @@ def run(uuid):
         '-t', threshold,
         '-l', sample_size,
         '-r', rounding,
+        '-p', norm_p,
         '-w',
         '-v'
     ]

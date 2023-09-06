@@ -126,17 +126,17 @@ def main():
     ### make waveform plot
     fig_wave = figure(title='Waveform plot', x_axis_label='Time [s]', y_axis_label='Amplitude [a.u.]', width=full_width, height=plot_height)
     fig_wave.output_backend = 'webgl'
-    button, input_bpm_target, input_bpm_window, circle_source = plot_waveform(fig_wave, signal, time, peaks, best_peaks, bpm_window, bpm_target, threshold, downsample_rate, cutoff)
+    button, input_bpm_center, input_bpm_window, circle_source = plot_waveform(fig_wave, signal, time, peaks, best_peaks, bpm_window, bpm_target, threshold, downsample_rate, cutoff)
 
     ### make stat plot
     fig_stat = figure(title='Statistics plot - most consistent Beats', x_axis_label='Transient Time difference [ms]', y_axis_label='Probability density[1/ms]', width=int(np.floor(full_width/2)), height=plot_height, tools="lasso_select,reset,pan,wheel_zoom,box_zoom,save")
     fig_stat.output_backend = 'webgl'
-    plot_stat(fig_stat, signal, norm_p, time, peaks, best_peak_numbers, line_renderers, circle_source)
+    input_bpm_target = plot_stat(fig_stat, signal, norm_p, time, peaks, best_peak_numbers, line_renderers, circle_source)
 
 
 
     ### plot it
-    layout = column(row(input_bpm_target, input_bpm_window, button), fig_wave, row(fig_center, fig_stat))
+    layout = column(row(input_bpm_center, input_bpm_window, button, input_bpm_target), fig_wave, row(fig_center, fig_stat))
     if args.web_mode:
         print("Writing graphs to {}summary.html".format(work_dir))
         output_file("{}summary.html".format(work_dir), title="Summary Page")
@@ -733,7 +733,7 @@ def plot_waveform(fig, signal, time, peaks, best_peaks, bpm_window, bpm_target, 
     fig.add_layout(text_annotation1)
     window_mean = (secondary_yrange_start + secondary_yrange_end)/2
     window_size = secondary_yrange_end - secondary_yrange_start
-    input_bpm_target = TextInput(title="BPM target:", value=f'{window_mean:.2f}')
+    input_bpm_target = TextInput(title="BPM center:", value=f'{window_mean:.2f}')
     input_bpm_window = TextInput(title="BPM window:", value=f'{window_size:.2f}')
     # Create a CustomJS callback for the button's onclick event
     callback = CustomJS(args=dict(y_range = sec_y_range, input_bpm_target = input_bpm_target, input_bpm_window = input_bpm_window, accel_source = accel_source, accelerations = np.abs(peaks["AccelBPM"])), code=
@@ -878,12 +878,13 @@ def plot_stat(fig, signal, norm_p, time, peaks, best_peak_numbers, line_renderer
     fig.x_range.start = mean_x - (number_of_standard_devations) * std_x
     fig.x_range.end = mean_x + (number_of_standard_devations) * std_x
     fig.legend.location = 'top_right'
-
-    circle_source.selected.js_on_change('indices', CustomJS(args=dict(circle_source=circle_source, text_annotation1=text_annotation1, text_annotation2=text_annotation2, text_annotation3=text_annotation3, line_source_stdmin=line_source_stdmin, line_source_stdmax=line_source_stdmax, line_source_mean=line_source_mean, all_mean=mean_x, all_std=std_x, line_renderers=line_renderers, circle_source_wav = circle_source_wav, best_peak_numbers = best_peak_numbers, norm_p = norm_p, all_norm = data_norm), code="""
+    input_bpm_target = TextInput(title="BPM target:", value=f'{((60/mean_x)*1000):.2f}')
+    circle_source.selected.js_on_change('indices', CustomJS(args=dict(circle_source=circle_source, text_annotation1=text_annotation1, text_annotation2=text_annotation2, text_annotation3=text_annotation3, line_source_stdmin=line_source_stdmin, line_source_stdmax=line_source_stdmax, line_source_mean=line_source_mean, all_mean=mean_x, all_std=std_x, line_renderers=line_renderers, circle_source_wav = circle_source_wav, best_peak_numbers = best_peak_numbers, norm_p = norm_p, all_norm = data_norm, input_bpm_target = input_bpm_target), code="""
      if (!window.isCallbackQueued) {
         // Set a timeout to execute the callback after a delay (e.g., 200 milliseconds)
         window.isCallbackQueued = true;
         setTimeout(function() {
+            const ms_target = (60/parseFloat(input_bpm_target.value))*1000;
             window.isCallbackQueued = false;
             const selected_indices = circle_source.selected.indices;
             const lineColorUpdates = {}; // Collect line_color updates
@@ -899,7 +900,7 @@ def plot_stat(fig, signal, norm_p, time, peaks, best_peak_numbers, line_renderer
                 // Calculate mean and stdev
                 const mean = selected_indices.reduce((a, b) => a + circle_source.data.x[b], 0) / selected_indices.length;
                 const stdev = Math.sqrt(selected_indices.reduce((a, b) => a + Math.pow(circle_source.data.x[b] - mean, 2), 0) / selected_indices.length);
-                const f = selected_indices.map(index => circle_source.data.x[index] - mean);
+                const f = selected_indices.map(index => circle_source.data.x[index] - ms_target);
                 const lpnorms = Math.pow(f.reduce((acc, val) => acc + Math.pow(Math.abs(val), norm_p), 0) / f.length, 1 / norm_p);
                 // Update text annotations
                 text_annotation1.text = "standard deviation = " + stdev.toFixed(2) + " ms";
@@ -925,7 +926,9 @@ def plot_stat(fig, signal, norm_p, time, peaks, best_peak_numbers, line_renderer
                 // On reset --> no circles selected
                 text_annotation1.text = "standard deviation = " + all_std.toFixed(2) + " ms";
                 text_annotation2.text = "mean = " + all_mean.toFixed(2) + " ms";
-                text_annotation3.text = "L" + norm_p.toFixed(1) + " error = " + all_norm.toFixed(2) +" ms"
+                const f = circle_source.data.x.map(x => x - ms_target);
+                const lpnorms = Math.pow(f.reduce((acc, val) => acc + Math.pow(Math.abs(val), norm_p), 0) / f.length, 1 / norm_p);
+                text_annotation3.text = "L" + norm_p.toFixed(1) + " error = " + lpnorms.toFixed(2) +" ms"
                 line_source_stdmin.data = { x: [all_mean - all_std, all_mean - all_std], y: line_source_stdmin.data.y };
                 line_source_stdmax.data = { x: [all_mean + all_std, all_mean + all_std], y: line_source_stdmin.data.y };
                 line_source_mean.data = { x: [all_mean, all_mean], y: line_source_stdmin.data.y };
@@ -949,6 +952,7 @@ def plot_stat(fig, signal, norm_p, time, peaks, best_peak_numbers, line_renderer
         }, 50); // milliseconds delay, adjust as needed
     }
     """))
+    return input_bpm_target
 
 def pad_and_stack_arrays(arrays):
     """Takes arrays of different lengths and pads them with zeroes to have the same length, then stacks them into a 2d array.

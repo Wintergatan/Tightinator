@@ -121,7 +121,7 @@ def main():
     ### make similarness plot
     fig_center = figure(title='Similarness plot - most consistent Beats', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]', width=int(np.floor(full_width/2)), height=plot_height)
     fig_center.output_backend = 'webgl'
-    line_renderers = plot_centered(fig_center, signal, norm_p time, peaks, best_peak_numbers, chunk_size)
+    line_renderers = plot_centered(fig_center, signal, time, peaks, best_peak_numbers, chunk_size)
 
     ### make waveform plot
     fig_wave = figure(title='Waveform plot', x_axis_label='Time [s]', y_axis_label='Amplitude [a.u.]', width=full_width, height=plot_height)
@@ -131,7 +131,7 @@ def main():
     ### make stat plot
     fig_stat = figure(title='Statistics plot - most consistent Beats', x_axis_label='Transient Time difference [ms]', y_axis_label='Probability density[1/ms]', width=int(np.floor(full_width/2)), height=plot_height, tools="lasso_select,reset,pan,wheel_zoom,box_zoom,save")
     fig_stat.output_backend = 'webgl'
-    plot_stat(fig_stat, signal, time, peaks, best_peak_numbers, line_renderers, circle_source)
+    plot_stat(fig_stat, signal, norm_p, time, peaks, best_peak_numbers, line_renderers, circle_source)
 
 
 

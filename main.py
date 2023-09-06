@@ -745,8 +745,6 @@ def plot_waveform(fig, signal, time, peaks, best_peaks, bpm_window, bpm_target, 
             y_range.start = y_start;
             y_range.end = bpm_target+(bpm_window/2);
             const y_starts = new Float64Array(accelerations.length).fill(y_start);
-            console.log(y_starts.length)
-            console.log(tops.length)
             accel_source.data['bottom'] = y_starts;
             accel_source.data['top'] = tops;
             accel_source.change.emit();
@@ -880,9 +878,9 @@ def plot_stat(fig, signal, norm_p, time, peaks, best_peak_numbers, line_renderer
     fig.x_range.start = mean_x - (number_of_standard_devations) * std_x
     fig.x_range.end = mean_x + (number_of_standard_devations) * std_x
     fig.legend.location = 'top_right'
-    circle_source.selected.js_on_change('indices', CustomJS(args=dict(circle_source=circle_source, text_annotation1=text_annotation1, text_annotation2=text_annotation2, line_source_stdmin=line_source_stdmin, line_source_stdmax=line_source_stdmax, line_source_mean=line_source_mean, all_mean=mean_x, all_std=std_x, line_renderers=line_renderers, circle_source_wav = circle_source_wav, best_peak_numbers = best_peak_numbers), code="""
+
+    circle_source.selected.js_on_change('indices', CustomJS(args=dict(circle_source=circle_source, text_annotation1=text_annotation1, text_annotation2=text_annotation2, text_annotation3=text_annotation3, line_source_stdmin=line_source_stdmin, line_source_stdmax=line_source_stdmax, line_source_mean=line_source_mean, all_mean=mean_x, all_std=std_x, line_renderers=line_renderers, circle_source_wav = circle_source_wav, best_peak_numbers = best_peak_numbers, norm_p = norm_p, all_norm = data_norm), code="""
      if (!window.isCallbackQueued) {
-         console.log(circle_source_wav)
         // Set a timeout to execute the callback after a delay (e.g., 200 milliseconds)
         window.isCallbackQueued = true;
         setTimeout(function() {
@@ -901,11 +899,12 @@ def plot_stat(fig, signal, norm_p, time, peaks, best_peak_numbers, line_renderer
                 // Calculate mean and stdev
                 const mean = selected_indices.reduce((a, b) => a + circle_source.data.x[b], 0) / selected_indices.length;
                 const stdev = Math.sqrt(selected_indices.reduce((a, b) => a + Math.pow(circle_source.data.x[b] - mean, 2), 0) / selected_indices.length);
-                
+                const f = selected_indices.map(index => circle_source.data.x[index] - mean);
+                const lpnorms = Math.pow(f.reduce((acc, val) => acc + Math.pow(Math.abs(val), norm_p), 0) / f.length, 1 / norm_p);
                 // Update text annotations
                 text_annotation1.text = "standard deviation = " + stdev.toFixed(2) + " ms";
                 text_annotation2.text = "mean = " + mean.toFixed(2) + " ms";
-                
+                text_annotation3.text = "L" + norm_p.toFixed(1) + " error = " + lpnorms.toFixed(2) +" ms"
                 // Update lines
                 line_source_stdmin.data = { x: [mean - stdev, mean - stdev], y: line_source_stdmin.data.y };
                 line_source_stdmax.data = { x: [mean + stdev, mean + stdev], y: line_source_stdmin.data.y };
@@ -926,6 +925,7 @@ def plot_stat(fig, signal, norm_p, time, peaks, best_peak_numbers, line_renderer
                 // On reset --> no circles selected
                 text_annotation1.text = "standard deviation = " + all_std.toFixed(2) + " ms";
                 text_annotation2.text = "mean = " + all_mean.toFixed(2) + " ms";
+                text_annotation3.text = "L" + norm_p.toFixed(1) + " error = " + all_norm.toFixed(2) +" ms"
                 line_source_stdmin.data = { x: [all_mean - all_std, all_mean - all_std], y: line_source_stdmin.data.y };
                 line_source_stdmax.data = { x: [all_mean + all_std, all_mean + all_std], y: line_source_stdmin.data.y };
                 line_source_mean.data = { x: [all_mean, all_mean], y: line_source_stdmin.data.y };

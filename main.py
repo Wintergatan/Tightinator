@@ -376,20 +376,34 @@ def peak_chunks(signal, peak_Samples, chunk_size):
     half_chunk_size = chunk_size // 2
     start_indices = np.maximum(0, np.array(center_points) - half_chunk_size)
     end_indices = np.minimum(len(waveform), np.array(center_points) + half_chunk_size + 1)
-    padding = chunk_size - (end_indices - start_indices)
-    padding[padding < 0] = 0
-    
+    pad_amount_start = max(0,half_chunk_size - start_indices[0])
+    pad_amount_end = max(0, end_indices[-1] - len(waveform))
     indices = np.arange(chunk_size)
     indices = indices[np.newaxis, :] + start_indices[:, np.newaxis]
     chunks = np.take(waveform, indices, mode='clip')
     
-    padded_chunks = np.where(padding[:, np.newaxis] > 0, 0, chunks)
+    padded_chunks = pad_first_and_last(chunks, pad_amount_start, pad_amount_end)
 #    tonormalize = True
 #    if tonormalize:
     peak_heights = signal[peak_Samples]
     padded_chunks = padded_chunks / np.maximum(0.1, peak_heights[:, np.newaxis])
         
     return padded_chunks
+
+def pad_first_and_last(chunks, shift_amount_start, shift_amount_end):
+    # Create a new array filled with zeros of the same shape as the original array
+    result = np.zeros_like(chunks)
+    # Copy the values from the original array to the new positions
+    result[1:-1, :] = chunks[1:-1, :]
+    if(shift_amount_start>0):
+        result[0,shift_amount_start:] = chunks[0,:-(shift_amount_start)]
+    else:
+        result[0,:] = chunks[0,:]
+    if(shift_amount_end>0):
+        result[-1,:-(shift_amount_end)] = chunks[-1,shift_amount_end:]
+    else:
+        result[-1,:] = chunks[-1,:]
+    return result
 
 
 def peakrefiner_center_of_weight(signal, time, old_peaks, chunk_size):
@@ -426,7 +440,7 @@ def peakrefiner_center_of_weight(signal, time, old_peaks, chunk_size):
     # Calculate the weighted average (center of weight) for each time sample
     power = 1.5
     centers_of_weight = np.round(np.sum((np.arange(chunk_size)*np.power(chunks, power)), axis=1) / np.sum(np.power(chunks, power), axis=1)).astype(int)
-    new_peak_samples = start_indexes + centers_of_weight 
+    new_peak_samples = np.maximum(0,start_indexes + centers_of_weight) 
     new_peaks = create_peaks(signal, time, new_peak_samples)
     return new_peaks
     

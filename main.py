@@ -99,6 +99,7 @@ def main():
     exclusion_samples = int(exclusion*sample_rate/1000) #calculate exclusion in samples from exclusion in ms
     chunk_size = int(chunk_size*sample_rate/1000) #calculate exclusion in samples from exclusion in ms
     peaks = rough_peaks(signal, time, threshold, exclusion_samples) #searches for the highest peaks in the file, they need to have a min height of threshold and a min distance of exclusion
+    #print(peaks['Samples'])
     peaks = peakrefiner_center_of_weight(signal, time, peaks, chunk_size) #refines the rough peaks found before by centering them on their center of weight 
     if(correlation):
         peaks = peakrefiner_correlation(signal, time, peaks, chunk_size//2) #further refines the peaks by applying a correlation method to find the point of best overlap with current average
@@ -344,6 +345,7 @@ def rough_peaks(signal, time, threshold, exclusion):
     
     samples, _ = find_peaks(signal, prominence=threshold, distance = exclusion)
     peaks = create_peaks(signal, time, samples)
+    #print(peaks["Samples"])
     return peaks
 
     
@@ -365,7 +367,7 @@ def peak_chunks(signal, peak_Samples, chunk_size):
         An np.ndarray containing samples of size chunk_size centered around given peak_Samples.
         Will pad itself so that hitting a border is not a problem.
     """
-    
+   
     waveform = signal
     center_points = peak_Samples
     num_center_points = len(center_points)
@@ -373,13 +375,14 @@ def peak_chunks(signal, peak_Samples, chunk_size):
     start_indices = np.maximum(0, np.array(center_points) - half_chunk_size)
     end_indices = np.minimum(len(waveform), np.array(center_points) + half_chunk_size + 1)
     padding = chunk_size - (end_indices - start_indices)
-    padding[padding < 0] = 0
     
+    padding[padding < 0] = 0
+
     indices = np.arange(chunk_size)
     indices = indices[np.newaxis, :] + start_indices[:, np.newaxis]
     chunks = np.take(waveform, indices, mode='clip')
-    
-    padded_chunks = np.where(padding[:, np.newaxis] > 0, 0, chunks)
+    #padded_chunks = np.where(padding[:, np.newaxis] > 0, 0, chunks)
+    padded_chunks = chunks
 #    tonormalize = True
 #    if tonormalize:
     peak_heights = signal[peak_Samples]
@@ -422,8 +425,10 @@ def peakrefiner_center_of_weight(signal, time, old_peaks, chunk_size):
     # Calculate the weighted average (center of weight) for each time sample
     power = 1.5
     centers_of_weight = np.round(np.sum((np.arange(chunk_size)*np.power(chunks, power)), axis=1) / np.sum(np.power(chunks, power), axis=1)).astype(int)
-    new_peak_samples = start_indexes + centers_of_weight 
+    new_peak_samples = np.maximum(1,start_indexes + centers_of_weight) 
+
     new_peaks = create_peaks(signal, time, new_peak_samples)
+    #print(new_peaks['Samples'])
     return new_peaks
     
 def peakrefiner_maximum_right(signal, time, old_peaks, chunk_size):
@@ -787,15 +792,18 @@ def plot_centered(fig, signal, time, peaks, best_peak_numbers, chunk_size):
     max_height = 1
     
     best_peak_samples = best_peaks["Samples"]
+    #print(best_peak_samples)
     chunks = peak_chunks(signal, best_peak_samples, chunk_size)
-
+    #print(signal[best_peak_samples])
     xs, ys = [], []
     line_sources, line_renderers = [], []
     x_axis = time[0:chunk_size] - time[chunk_size//2]
     for i in np.arange(chunks.shape[0]):
+        #print(i)
         chunk = chunks[i]
         line_sources.append(ColumnDataSource(data={'x': x_axis[chunk > cutoff], 'y': chunk[chunk > cutoff]}))
         line_renderers.append(Line(x='x', y='y', line_color="blue", line_alpha=0.5))
+        #print(chunk)
         new_max = max(chunk[chunk > cutoff])
         if(new_max > max_height):
             max_height = new_max

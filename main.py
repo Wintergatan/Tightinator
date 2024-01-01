@@ -105,8 +105,8 @@ def main():
     peaks = rough_peaks(signal, time, threshold, exclusion_samples) #searches for the highest peaks in the file, they need to have a min height of threshold and a min distance of exclusion
     peaks = peakrefiner_center_of_weight(signal, time, peaks, chunk_size) #refines the rough peaks found before by centering them on their center of weight 
     if(correlation):
-        peaks = peakrefiner_correlation(signal, time, peaks, chunk_size//2) #further refines the peaks by applying a correlation method to find the point of best overlap with current average
-    peaks = peakrefiner_maximum_right(signal, time, peaks, chunk_size//8) #looks for a maximum in a very small window around the refined peak
+        peaks = peakrefiner_correlation(signal, time, peaks, chunk_size*10) #further refines the peaks by applying a correlation method to find the point of best overlap with current average
+    peaks = peakrefiner_maximum(signal, time, peaks, chunk_size//4) #looks for a maximum in a very small window around the refined peak
 
     ### find the best series
     begin_best, l_bestseries = find_chunk_with_lowest_std(peaks, l_bestseries)
@@ -121,7 +121,7 @@ def main():
     ### make similarness plot
     fig_center = figure(title='Similarness plot - most consistent Beats', x_axis_label='Time [ms]', y_axis_label='Amplitude [a.u.]', width=int(np.floor(full_width/2)), height=plot_height)
     fig_center.output_backend = 'webgl'
-    line_renderers = plot_centered(fig_center, signal, time, peaks, best_peak_numbers, chunk_size)
+    line_renderers = plot_centered(fig_center, signal, time, peaks, best_peak_numbers, chunk_size*5)
 
     ### make waveform plot
     fig_wave = figure(title='Waveform plot', x_axis_label='Time [s]', y_axis_label='Amplitude [a.u.]', width=full_width, height=plot_height)
@@ -485,6 +485,49 @@ def peakrefiner_maximum_right(signal, time, old_peaks, chunk_size):
     new_peaks = create_peaks(signal, time, new_peak_samples)
     return new_peaks
 
+def peakrefiner_maximum(signal, time, old_peaks, chunk_size):
+    """A peak refiner that takes the center of weight of a peak and finds the maximum both left and right of that.
+
+    Parameters
+    ----------
+    signal : array
+        np.array that contains the normalized waveform.    
+    time : array
+        np.array that contains the corresponding time of each sample in ms.               
+    old_peaks : dict
+        Old peaks to refine.
+    chunk_size : int
+        Length of the window of calculation.
+
+    Returns
+    -------
+    new_peaks : dict
+        dict that contains all relevant data of the refocused peaks.    
+    """
+    
+    new_chunk_size = chunk_size
+    shift = new_chunk_size // 2
+    chunks = peak_chunks(signal, old_peaks["Samples"], new_chunk_size)
+    center_index = new_chunk_size // 2
+    window_size = 31
+    sigma = 10  # Adjust the sigma value as needed for your Gaussian kernel
+    x = np.arange(window_size)
+    weights = 1 / (np.sqrt(2 * np.pi) * sigma) * np.exp(-0.5 * ((x - window_size) / sigma)**2)
+    weights /= weights.sum()  # Normalize the weights
+    
+    # chunks = np.apply_along_axis(lambda row: np.convolve(row, weights, mode='same'), axis=1, arr=chunks)
+    
+    # Find the index of the maximum value within each chunk
+    max_indices = np.argmax(chunks, axis=1)
+    
+    # Calculate the new peak_Samples using the maximum indices
+    new_peak_samples = old_peaks["Samples"] + max_indices - center_index
+    
+    new_peaks = create_peaks(signal, time, new_peak_samples)
+    # figx1, axx1 = plt.subplots(1)
+    # axx1.plot(chunks[1,:])
+    # figx1.show()
+    return new_peaks
  
 def peakrefiner_correlation(signal, time, old_peaks, chunk_size):
     """A peak refiner that uses the correlation method to align all peaks.

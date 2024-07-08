@@ -18,4 +18,4 @@ USER wilson
 # Start up the app!
 WORKDIR /opt/web
 EXPOSE 5000/tcp
-CMD [ "python3", "app.py"]
+CMD [ "gunicorn", "--bind", "127.0.0.1:5000", "app:app"]

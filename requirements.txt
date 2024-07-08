@@ -1,6 +1,7 @@
 numpy
 bokeh
 scipy
+gunicorn
 flask
 scikit-image
 markupsafe==2.0.1

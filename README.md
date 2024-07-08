@@ -16,6 +16,8 @@ There is a 150M file size limit for upload, and working data will be removed aft
 
 The main.py file in the top-level of this repository is the best file for use locally and testing. The `web/` directory contains the versions currently deployed onto the mcnulty.in endpoint.
 
+The docker configuration is used for hosting and deploy, hence the internet host IP hard-coded in the gunicorn settings. This is to prevent header forging. You will need to edit a few sticking points if you want to use it for local development.
+
 main.py will output help:
 ```
 usage: main.py [-h] [-f FILENAME] [-o OUTPUT_FILENAME] [-t THRESHOLD] [-cf CUTOFF] [-c CHANNEL] [-d DOWNSAMPLE_RATE] [-cz CHUNK_SIZE] [-ex EXCLUSION] [-r FLOAT_PREC]

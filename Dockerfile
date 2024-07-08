@@ -18,4 +18,4 @@ USER wilson
 # Start up the app!
 WORKDIR /opt/web
 EXPOSE 5000/tcp
-CMD [ "python3", "app.py"]
+CMD [ "gunicorn", "--bind", "0.0.0.0:5000", "--timeout", "1000", "--forwarded-allow-ips=\"104.248.201.220\"", "app:app"]

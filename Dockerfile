@@ -18,4 +18,4 @@ USER wilson
 # Start up the app!
 WORKDIR /opt/web
 EXPOSE 5000/tcp
-CMD [ "gunicorn", "--bind", "127.0.0.1:5000", "app:app"]
+CMD [ "gunicorn", "--bind", "0.0.0.0:5000", "--forwarded-allow-ips=\"104.248.201.220\"", "app:app"]

@@ -260,6 +260,10 @@ def favicon():
                                'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
 
+# Sites allowed to show the app in an iframe (space-separated origins), e.g.
+# the project page on tom.mcnulty.in. Set FRAME_ANCESTORS to change it.
+FRAME_ANCESTORS = os.getenv('FRAME_ANCESTORS', 'https://tom.mcnulty.in').split()
+
 # Bokeh plots load from cdn.bokeh.org and compile CustomJS callbacks at
 # runtime ('unsafe-eval'); the templates use inline scripts ('unsafe-inline').
 CONTENT_SECURITY_POLICY = "; ".join([
@@ -274,7 +278,7 @@ CONTENT_SECURITY_POLICY = "; ".join([
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
-    "frame-ancestors 'self'",
+    " ".join(["frame-ancestors 'self'"] + FRAME_ANCESTORS),
 ])
 
 
@@ -282,7 +286,8 @@ CONTENT_SECURITY_POLICY = "; ".join([
 def set_security_headers(response):
     response.headers.setdefault('Content-Security-Policy', CONTENT_SECURITY_POLICY)
     response.headers.setdefault('X-Content-Type-Options', 'nosniff')
-    response.headers.setdefault('X-Frame-Options', 'SAMEORIGIN')
+    # No X-Frame-Options: it can't allow another site, and frame-ancestors
+    # in the CSP above supersedes it in every current browser.
     response.headers.setdefault('Referrer-Policy', 'same-origin')
     return response
 

@@ -2,6 +2,11 @@ FROM python:3.12-slim
 
 WORKDIR /opt
 
+# curl is used by the Coolify container health check.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends curl \
+ && rm -rf /var/lib/apt/lists/*
+
 # Add requirements and install dependencies
 COPY requirements.txt /opt/requirements.txt
 RUN pip3 install -r requirements.txt

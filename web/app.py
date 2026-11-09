@@ -13,6 +13,8 @@ app = Flask(__name__)
 
 UPLOAD_FOLDER = 'static/upload'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+# Reject uploads over 150 MB (returns HTTP 413).
+app.config['MAX_CONTENT_LENGTH'] = 150 * 1024 * 1024
 
 processes = {}
 

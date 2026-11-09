@@ -149,7 +149,7 @@
         <p class="failure-message">There was no retreivable timing file or results within the time allowed.</p>
         <p>Please send Tom this page and ID: {{ uuid }}</p>
         <div id="homeButton">
-            <button href="/result/{{ uuid }}/{{ output_filename }}">Check again for results</button>
+            <a href="/result/{{ uuid }}/{{ output_filename }}"><button type="button">Check again for results</button></a>
             <a id="homeLink" href="{{ url_for('index') }}">Upload another file</a>
         </div>
     {% endif %}
@@ -185,15 +185,15 @@
     {% endif %}
 
     <script>
-        const uuid = "{{ uuid }}";
-        const output_filename = "{{ output_filename }}";
+        const uuid = {{ uuid|tojson }};
+        const output_filename = {{ output_filename|tojson }};
 
         function getSummary() {
             const spinner = document.getElementById('spinner');
             const summaryIframe = document.getElementById('summaryIframe');
 
             function fetchSummary() {
-                fetch(`/static/upload/${uuid}/summary.html`)
+                fetch(`/files/${uuid}/summary.html`)
                     .then(response => {
                         if (!response.ok) {
                             throw new Error('Response not OK');
@@ -234,8 +234,7 @@
                 } else {
                     data.forEach(summary => {
                         const summaryLink = document.createElement('a');
-                        console.log(summary.filename)
-                        summaryLink.href = `/${summary.filename}`;
+                        summaryLink.href = summary.url;
                         summaryLink.textContent = summary.display_name;
                         summaryLink.target = '_blank';
 

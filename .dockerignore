@@ -1,0 +1,8 @@
+.git
+sample_data
+web/static/upload/*
+web/__pycache__
+**/*.pyc
+*.json
+*.csv
+*.log

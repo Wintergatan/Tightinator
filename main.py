@@ -704,7 +704,7 @@ def plot_chunk_sim(chunks, time, chunk_size, full_width, plot_height):
         ys.append(chunk)
         xs.append(xrange)
     fig_wave.multi_line(xs, ys, alpha = 0.5)
-    fig_wave.circle(x=0, y=1, color="red")
+    fig_wave.scatter(x=0, y=1, color="red")
     y_range_start = 0
     y_range_end = min(2,np.max(ys))
     fig_wave.y_range = Range1d(start=y_range_start, end=y_range_end)  # Set the y-range of the left y-axis
@@ -768,7 +768,7 @@ def plot_waveform(fig, signal, time, peaks, best_peaks, bpm_window, bpm_target, 
     fig.add_layout(LinearAxis(y_range_name="peak_diff_range", axis_label="BPM [Hz]"), 'right')  # Add the right y-axis
     fig.vbar(x=peak_second_middles, top=peaks["BPM"], width=(peak_second_diffs) * 0.9, y_range_name="peak_diff_range", color = 'green', fill_alpha=1, legend_label='BPM')
     circle_source = ColumnDataSource(data=dict(x = peaks["Times"] / 1000, y = peaks["Heights"], colors = ['red'] * len( peaks["Heights"]), alpha = [1]* len( peaks["Heights"])))
-    circle_renderers = fig.circle(x = 'x', y = 'y' , legend_label='Detected Peaks', color = 'colors', alpha = 'alpha', source = circle_source)
+    circle_renderers = fig.scatter(x = 'x', y = 'y' , legend_label='Detected Peaks', color = 'colors', alpha = 'alpha', source = circle_source)
     accel_renderer = fig.vbar(x='x', bottom='bottom',top='top', width='width', y_range_name="peak_diff_range", color = 'color', fill_alpha=1, legend_label='BPM Acceleration', source = accel_source)
 
     fig.line(time_cut, signal_cut, legend_label='Waveform')
@@ -862,7 +862,7 @@ def plot_centered(fig, signal, time, peaks, best_peak_numbers, chunk_size):
     for line, source in zip(line_renderers, line_sources):
         fig.add_glyph(source,line)
         
-    fig.circle(0, 1, size=10, fill_color='red', legend_label='detected peaks')
+    fig.scatter(0, 1, size=10, fill_color='red', legend_label='detected peaks')
     fig.x_range.start = min(x_axis)
     max_xrange = max(x_axis)
     fig.x_range.end = max_xrange
@@ -913,7 +913,7 @@ def plot_stat(fig, signal, norm_p, time, peaks, best_peak_numbers, line_renderer
     fig.add_layout(LinearAxis(y_range_name="amplitude_range", axis_label="Amplitude [a.u.]"), 'right')  # Add the right y-axis
     plot_heights = best_peaks["Heights"]
     circle_source = ColumnDataSource(data=dict(x=x_data, y=best_peaks["Heights"][1:]))
-    fig.circle(x='x',y='y', size=7, fill_color='red', legend_label='Peak Transient Time', y_range_name="amplitude_range", source=circle_source)
+    fig.scatter(x='x',y='y', size=7, fill_color='red', legend_label='Peak Transient Time', y_range_name="amplitude_range", source=circle_source)
     fig.xaxis.ticker.num_minor_ticks = 9
     line_source_stdmin = ColumnDataSource(data=dict(x=[mean_x - std_x, mean_x - std_x], y=[0,bin_height/4]))
     fig.line(x='x', y='y', line_width=2, line_dash="dashed", line_color="black", legend_label= 'standard deviation', source = line_source_stdmin)

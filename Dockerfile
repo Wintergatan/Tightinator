@@ -1,4 +1,4 @@
-FROM python:latest
+FROM python:3.12-slim
 
 WORKDIR /opt
 
@@ -12,10 +12,12 @@ COPY main.py /opt/web/main.py
 
 # We'll run everything under a regular user acct, not root.
 RUN adduser wilson --home /opt --disabled-password
+# Uploads/results live here; mount a persistent volume at this path.
+RUN mkdir -p /opt/web/static/upload
 RUN chown wilson:wilson /opt -R
 USER wilson
 
 # Start up the app!
 WORKDIR /opt/web
 EXPOSE 5000/tcp
-CMD [ "gunicorn", "--bind", "0.0.0.0:5000", "--timeout", "1000", "--forwarded-allow-ips=\"104.248.201.220\"", "app:app"]
+CMD [ "gunicorn", "--bind", "0.0.0.0:5000", "--timeout", "1000", "--forwarded-allow-ips=*", "app:app"]

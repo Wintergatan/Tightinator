@@ -4,7 +4,6 @@
 <html>
 <head>
     <title>The TIGHTINATOR</title>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <style>
         body {
             font-family: sans-serif;
@@ -219,7 +218,7 @@
                             const filename = response.filename;
 
                             // Redirect to the config endpoint with the UUID
-                            window.location.href = `/config/${uuid}/${filename}`;
+                            window.location.href = `/config/${encodeURIComponent(uuid)}/${encodeURIComponent(filename)}`;
                         } else {
                             loadingSpinner.style.display = 'none';
                             progressBar.style.display = 'none';
@@ -286,7 +285,7 @@
                             const filename = response.filename;
 
                             // Redirect to the config endpoint with the UUID
-                            window.location.href = `/config/${uuid}/${filename}`;
+                            window.location.href = `/config/${encodeURIComponent(uuid)}/${encodeURIComponent(filename)}`;
                         } else {
                             loadingSpinner.style.display = 'none';
                             progressBar.style.display = 'none';

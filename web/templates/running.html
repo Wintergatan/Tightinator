@@ -64,8 +64,8 @@
 
     <script>
         // Get the UUID from the query parameter
-        const uuid = "{{ uuid }}";
-        const output_filename = "{{ output_filename }}";
+        const uuid = {{ uuid|tojson }};
+        const output_filename = {{ output_filename|tojson }};
         console.log(uuid, output_filename);
 
         // Function to check if the file is ready for download

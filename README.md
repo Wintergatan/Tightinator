@@ -72,6 +72,11 @@ To install these libraries, run the following command:
 pip install -r requirements.txt
 ```
 
+`requirements.txt` lists the direct dependencies. The Docker image installs from `requirements.lock`, which pins every transitive dependency with hashes. After changing `requirements.txt`, regenerate the lock file:
+```bash
+uv pip compile requirements.txt --universal --python-version 3.12 --generate-hashes --no-header -o requirements.lock
+```
+
 ### Running with Docker
 This project comes with a [Dockerfile](./Dockerfile) for the webapp implementation. There is also a [compose file](./docker-compose.yml) and a [shell script](./docker.sh) for building and running the container in one go with `docker-compose`. If the container successfuly launches, you should be able to access it at http://127.0.0.1:5000 .
 
@@ -81,10 +86,9 @@ This project comes with a [Dockerfile](./Dockerfile) for the webapp implementati
 docker build . -t yanfett/wintergatan-data-analysis:latest
 
 ## Run the program.
-# --network host      Use the host machine's loopback network. (127.0.0.1)
-# -d                  Detach, runs the container in the background.
-# -e DEBUG_MODE=True  Debug mode for the webapp. Remove or set to "False" to turn off.
-docker run --network host -d -e DEBUG_MODE=True yanfett/wintergatan-data-analysis:latest
+# -p 127.0.0.1:5000:5000  Publish the app on localhost only.
+# -d                      Detach, runs the container in the background.
+docker run -p 127.0.0.1:5000:5000 -d yanfett/wintergatan-data-analysis:latest
 
 ## Stop the program
 docker stop <container name>
@@ -97,12 +101,22 @@ docker compose build
 
 ## Run the program.
 # -d                  Detach, runs the container in the background.
-# -e DEBUG_MODE=True  Debug mode for the webapp. Remove or set to "False" to turn off.
-docker compose run -d -e DEBUG_MODE=True wintergatan-data-analysis
+docker compose run -d wintergatan-data-analysis
 
 ## Stop the program
 docker compose stop wintergatan-data-analysis
 ```
+
+#### Configuration
+These environment variables can be set on the container:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `MAX_CONCURRENT_JOBS` | `2` | Analyses allowed to run at once; further requests get HTTP 429. |
+| `JOB_TIMEOUT_SECONDS` | `900` | Analyses running longer than this are killed. |
+| `FORWARDED_ALLOW_IPS` | `127.0.0.1,::1` | Addresses gunicorn trusts `X-Forwarded-*` headers from (set to your reverse proxy's network). |
+
+`DEBUG_MODE=True` enables Flask's debugger when running `python app.py` directly. Never use it on a reachable host: the debugger allows code execution.
 
 ## Contributing
 

@@ -2,7 +2,6 @@
 <html>
 <head>
     <title>Tightinator settings</title>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <style>
         body {
             font-family: sans-serif;
@@ -159,7 +158,7 @@
 <!--             <p>File to analcyze: {{ filename }}</p> -->
 
             <label for="output_filename" title="Filename to write output values to.">Output filename:
-                <input type="text" id="output_filename" name="output_filename" value={{ output_filename }}>
+                <input type="text" id="output_filename" name="output_filename" value="{{ output_filename }}">
             </label>
 
             <label for="threshold" title="Peak detection threshold, lower is rougher.">Sensitivity:
@@ -325,41 +324,25 @@
                 body: formData
             })
             .then(response => {
-            if (response.ok) {
-                // Create a form element
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = '/running';  // Change to the appropriate URL
+                if (response.ok) {
+                    // /run redirects to the running page; follow it.
+                    window.location.href = response.url;
+                    return;
+                }
+                return response.json()
+                    .catch(() => ({}))
+                    .then(body => {
+                        throw new Error(body.error || `Request failed with status: ${response.status}`);
+                    });
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert(error.message);
 
-                // Create an input element for the UUID
-                const uuidInput = document.createElement('input');
-                uuidInput.type = 'hidden';
-                uuidInput.name = 'uuid';
-                uuidInput.value = uuid;
-
-                // Create an input element for the UUID
-                const filenameInput = document.createElement('input');
-                filenameInput.type = 'hidden';
-                filenameInput.name = 'filename';
-                filenameInput.value = filename;
-
-                // Append the input element to the form
-                form.appendChild(uuidInput);
-                form.appendChild(filenameInput);
-
-                // Append the form to the document and submit it
-                document.body.appendChild(form);
-                form.submit();
-            } else {
-                throw new Error(`Request failed with status: ${response.status}`);
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-
-            // Hide the spinner and show the form again
-            spinner.style.display = 'none';
-            configForm.style.display = 'block';
+                // Hide the spinner and show the form again
+                spinner.style.display = 'none';
+                configForm.style.display = 'block';
+            });
         });
     </script>
 

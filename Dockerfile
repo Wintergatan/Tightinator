@@ -1,6 +1,6 @@
 # Pinned by digest so rebuilds are reproducible. To update, pull the newest
-# python:3.12-slim and replace the digest.
-FROM python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b
+# python:3.14-slim and replace the digest.
+FROM python:3.14-slim@sha256:9aaa474097d094040649f2162a627c0049b408f52138d980916788d80f04802f
 
 # FORWARDED_ALLOW_IPS: gunicorn only trusts X-Forwarded-* headers from these
 # addresses. The app builds relative URLs only, so it doesn't rely on them.

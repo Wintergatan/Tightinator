@@ -74,7 +74,7 @@ pip install -r requirements.txt
 
 `requirements.txt` lists the direct dependencies. The Docker image installs from `requirements.lock`, which pins every transitive dependency with hashes. After changing `requirements.txt`, regenerate the lock file:
 ```bash
-uv pip compile requirements.txt --universal --python-version 3.12 --generate-hashes --no-header -o requirements.lock
+uv pip compile requirements.txt --universal --python-version 3.14 --generate-hashes --no-header -o requirements.lock
 ```
 
 ### Running with Docker

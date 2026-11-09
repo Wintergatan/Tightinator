@@ -114,6 +114,7 @@ These environment variables can be set on the container:
 | --- | --- | --- |
 | `MAX_CONCURRENT_JOBS` | `2` | Analyses allowed to run at once; further requests get HTTP 429. |
 | `JOB_TIMEOUT_SECONDS` | `900` | Analyses running longer than this are killed. |
+| `FRAME_ANCESTORS` | `https://tom.mcnulty.in` | Space-separated origins allowed to embed the app in an iframe. |
 | `FORWARDED_ALLOW_IPS` | `127.0.0.1,::1` | Addresses gunicorn trusts `X-Forwarded-*` headers from (set to your reverse proxy's network). |
 
 `DEBUG_MODE=True` enables Flask's debugger when running `python app.py` directly. Never use it on a reachable host: the debugger allows code execution.

@@ -174,6 +174,13 @@
         const logoArea = document.getElementById('logoContainer');
         const dropArea = document.getElementById('dropArea');
         const fileInput = document.getElementById('fileInput');
+
+        // Browsers report .wav files under several MIME types (or none, on
+        // Linux), so go by the extension; the server checks it again anyway.
+        const WAV_TYPES = ['audio/wav', 'audio/x-wav', 'audio/wave', 'audio/vnd.wave'];
+        function isWavFile(file) {
+            return !!file && (/\.wav$/i.test(file.name) || WAV_TYPES.includes(file.type));
+        }
         const loadingSpinner = document.getElementById('loadingSpinner');
         const spinnerImage = document.getElementById('spinnerImage');
         const progressBar = document.getElementById('progressBar');
@@ -187,7 +194,7 @@
         fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
 
-            if (['audio/wav', 'audio/x-wav'].includes(file.type)) { // Check if the MIME type of the uploaded file indicates .wav
+            if (isWavFile(file)) {
                 const formData = new FormData();
                 formData.append('file', file);
 
@@ -254,7 +261,7 @@
 
             const file = e.dataTransfer.files[0];
 
-            if (['audio/wav', 'audio/x-wav'].includes(file.type)) { // Check if the MIME type of the uploaded file indicates .wav
+            if (isWavFile(file)) {
                 const formData = new FormData();
                 formData.append('file', file);
 
@@ -301,45 +308,6 @@
             }
         });
 
-        fileInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-
-            if (['audio/wav', 'audio/x-wav'].includes(file.type)) { // Check if the MIME type of the uploaded file indicates .wav
-                const formData = new FormData();
-                formData.append('file', file);
-
-                // Show loading spinner and hide drop area
-                dropArea.style.display = 'none';
-                loadingSpinner.style.display = 'block';
-
-                const xhr = new XMLHttpRequest();
-                xhr.open('POST', '/', true);
-                xhr.upload.onprogress = function (e) {
-                    if (e.lengthComputable) {
-                        const percent = (e.loaded / e.total) * 100;
-                        progressBar.style.width = percent + '%';
-                    }
-                };
-
-                xhr.onreadystatechange = function () {
-                    if (xhr.readyState === XMLHttpRequest.DONE) {
-                        if (xhr.status === 200) {
-                            loadingSpinner.style.display = 'none';
-                            progressBar.style.display = 'none';
-                            checkmark.style.display = 'block';
-                        } else {
-                            loadingSpinner.style.display = 'none';
-                            progressBar.style.display = 'none';
-                            console.log('Upload failed');
-                        }
-                    }
-                };
-
-                xhr.send(formData);
-            } else {
-                console.log('Invalid file type. Please select a .wav file.');
-            }
-        });
     </script>
 </body>
 </html>
